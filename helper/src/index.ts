@@ -14,6 +14,8 @@
  * spec, so an HTTPS page may call http://127.0.0.1 freely.
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
   startDiscovery,
   listScanners,
@@ -28,11 +30,45 @@ const VERSION = "0.1.0";
 /**
  * Origins allowed to drive this helper. Anything not listed is refused, so a
  * random site the user visits cannot use the helper to reach their LAN.
+ *
+ * Resolved from three places so that changing the hosted app's domain never
+ * requires rebuilding and redistributing this binary:
+ *   1. the baked-in defaults below
+ *   2. an `hp-scan.config.json` sitting next to the executable
+ *   3. the ALLOWED_ORIGINS environment variable
  */
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+const BAKED_ORIGINS = [
+  "https://hp-scan.vercel.app",
+  "https://hp-scan-amar-kisoensinghs-projects.vercel.app",
+];
+
+function configFileOrigins(): string[] {
+  // process.execPath is the compiled binary; in dev it's the bun runtime, in
+  // which case the file simply won't exist and we fall through to the defaults.
+  const dir = dirname(process.execPath);
+  for (const name of ["hp-scan.config.json", "config.json"]) {
+    try {
+      const raw = readFileSync(join(dir, name), "utf8");
+      const parsed = JSON.parse(raw) as { allowedOrigins?: string[] };
+      if (Array.isArray(parsed.allowedOrigins)) {
+        console.log(`[helper] loaded ${parsed.allowedOrigins.length} origin(s) from ${name}`);
+        return parsed.allowedOrigins;
+      }
+    } catch {
+      // Absent or unreadable config is the normal case; ignore it.
+    }
+  }
+  return [];
+}
+
+const ALLOWED_ORIGINS = [
+  ...BAKED_ORIGINS,
+  ...configFileOrigins(),
+  ...(process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+];
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return true; // curl / same-process probes

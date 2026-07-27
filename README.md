@@ -105,24 +105,71 @@ Useful simulator env vars: `SIM_PORT`, `SIM_SHEETS`, `SIM_PAGE_DELAY_MS`
 (per-page delay, default 1200ms to mimic the real device), `SIM_MAX_EDGE`,
 `SIM_MDNS=0`.
 
+## Hosted app
+
+Production: **https://hp-scan.vercel.app**
+
+The helper allows that origin out of the box. Origins are resolved from three
+places, so moving to a new domain never requires rebuilding the binary:
+
+1. baked-in defaults in `helper/src/index.ts`
+2. `hp-scan.config.json` next to the executable (`{"allowedOrigins": [...]}`) —
+   the installer writes this
+3. the `ALLOWED_ORIGINS` environment variable
+
 ## Building the helper
 
 ```sh
 cd helper && bun run build
 ```
 
-Produces `dist/hp-scan-helper-{mac-arm64,mac-x64,win-x64.exe}`. Set
-`ALLOWED_ORIGINS=https://your-app-domain` when running it against a hosted UI.
+Produces `dist/hp-scan-helper-{mac-arm64,mac-x64,win-x64.exe}`.
 
-Note these are large (58MB mac, 109MB Windows) because Bun embeds its runtime.
-Fine for a once-ever install, but if download size matters, the helper is small
-and self-contained enough to port to Go for a ~5MB binary.
+These are large (58MB mac, 109MB Windows) because Bun embeds its runtime. If
+download size matters, the helper is small and self-contained enough to port to
+Go for a ~5MB binary.
+
+## Building the Windows installer
+
+Needs NSIS, which runs on macOS — no Windows machine required:
+
+```sh
+brew install makensis
+cd helper && bun run build:win
+cd installer && makensis hp-scan.nsi
+```
+
+Produces `helper/dist/hp-scan-helper-setup.exe` (~26MB; LZMA compresses the
+109MB payload well). The installer:
+
+- installs to Program Files and asks for admin **once**, solely to add the
+  Windows Firewall rule that mDNS (UDP 5353) needs — without it the user gets a
+  confusing security popup on first scan and discovery silently fails
+- registers autostart under `HKCU\...\Run`, so the helper is always up
+- launches via a WScript shim so no console window appears. Bun's
+  `--windows-hide-console` only works when compiling *on* Windows, which is why
+  the shim exists
+- writes `hp-scan.config.json` with the allowed origin
+- adds Start Menu + Desktop shortcuts pointing at the hosted app
+- ships an uninstaller that removes the firewall rule and autostart entry
+
+**Not code-signed.** SmartScreen will show "Windows protected your PC" on first
+run; the user has to click *More info → Run anyway*. Silencing that needs a
+code-signing certificate.
 
 ## Status
 
 Verified end to end against the simulator: discovery, capability parsing, ADF
 duplex batch scanning, live page arrival, reordering, rotation, and PDF export
 with correct per-page geometry.
+
+Also verified from the deployed production site at https://hp-scan.vercel.app
+talking to a local helper — which confirms the loopback mixed-content exemption
+and Chrome's Private Network Access preflight both behave as intended.
+
+Drag-to-reorder is the one path exercised only via its keyboard equivalent;
+the pointer sensor needs a real mouse gesture that the test harness can't
+synthesise.
 
 Not yet verified against real hardware. When the printer is available:
 
