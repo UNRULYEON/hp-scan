@@ -5,3 +5,5 @@ dist/
 *.bun-build
 *.tsbuildinfo
 installer-out/
+.vercel
+.env*
