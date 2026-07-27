@@ -213,6 +213,10 @@ export default function App() {
           // accepts 2.1 in ScanSettings. runScanJob falls back if this is wrong.
           version: "2.1",
           useFormatExt: activeCaps?.supportsFormatExt ?? false,
+          // Neutral values, mirroring what the device's own web UI sends.
+          compressionFactor: caps?.supportsCompressionFactor ? 25 : undefined,
+          brightness: caps?.supportsBrightness ? 1000 : undefined,
+          contrast: caps?.supportsContrast ? 1000 : undefined,
         },
         {
           onPage: (page) => {

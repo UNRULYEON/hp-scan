@@ -53,6 +53,10 @@ export type Capabilities = {
   feederCapacity?: number;
   /** True when the device reports whether paper is sitting in the feeder. */
   detectsPaperLoaded: boolean;
+  /** Optional image-tuning knobs, sent only when advertised. */
+  supportsBrightness: boolean;
+  supportsContrast: boolean;
+  supportsCompressionFactor: boolean;
 };
 
 export type ScannerStatus = {
@@ -86,6 +90,10 @@ export type ScanRequest = {
   useFormatExt: boolean;
   /** eSCL "Intent" — hints the device's own image processing. */
   intent?: "Document" | "Photo" | "TextAndGraphic" | "Preview";
+  /** Only set when the device advertises support; matches its own web UI. */
+  compressionFactor?: number;
+  brightness?: number;
+  contrast?: number;
 };
 
 // --- parsing ---------------------------------------------------------------
@@ -167,6 +175,9 @@ export function parseCapabilities(xml: string): Capabilities {
     adfDuplex: parseSourceCaps(local(doc, "AdfDuplexInputCaps")),
     feederCapacity: Number(local(doc, "FeederCapacity")?.textContent?.trim()) || undefined,
     detectsPaperLoaded: adfOptions.includes("DetectPaperLoaded"),
+    supportsBrightness: Boolean(local(doc, "BrightnessSupport")),
+    supportsContrast: Boolean(local(doc, "ContrastSupport")),
+    supportsCompressionFactor: Boolean(local(doc, "CompressionFactorSupport")),
   };
 }
 
@@ -182,44 +193,66 @@ export function parseStatus(xml: string): ScannerStatus {
 
 // --- request building ------------------------------------------------------
 
+/**
+ * Build a ScanSettings document modelled byte-for-byte on what an OfficeJet
+ * Pro 7740's own web UI sends, because that is the one request shape the
+ * firmware is known to accept.
+ *
+ * Three things here are deliberate and load-bearing:
+ *
+ *  - **No XML declaration, and no whitespace between elements.** The device's
+ *    own client sends a single line with no prolog. A pretty-printed document
+ *    is rejected with a generic
+ *      409 conflictWithExisting /ScanSettings/Version "Input Settings Mismatch"
+ *    which points at the first child element rather than the real problem.
+ *  - **Element order** follows the PWG schema sequence; ScanRegion in
+ *    particular must be Height, Width, XOffset, YOffset.
+ *  - **ContentRegionUnits is omitted.** Optional, and the device's own client
+ *    leaves it out.
+ *
+ * Callers are expected to have clamped width/height to the source's maximum.
+ */
 export function buildScanSettings(req: ScanRequest): string {
-  // Some firmware rejects a job whose region exceeds the source's maximum, so
-  // callers are expected to have clamped width/height to the source caps.
-  //
-  // Element order matters. The PWG schema declares ScanRegion as a sequence,
-  // and HP firmware validates against it, so Height/Width/XOffset/YOffset must
-  // appear in that order. ContentRegionUnits is deliberately omitted: it is
-  // optional, and the 7740's own web UI omits it on requests that succeed.
   const format = "image/jpeg";
   const formatEl = req.useFormatExt
-    ? `  <scan:DocumentFormatExt>${format}</scan:DocumentFormatExt>`
-    : `  <pwg:DocumentFormat>${format}</pwg:DocumentFormat>`;
+    ? `<scan:DocumentFormatExt>${format}</scan:DocumentFormatExt>`
+    : `<pwg:DocumentFormat>${format}</pwg:DocumentFormat>`;
 
-  // Duplex is only meaningful for the feeder, and sending it for the platen is
-  // an easy way to earn another settings-mismatch rejection.
+  // Duplex is meaningful only for the feeder; sending it for the platen is an
+  // easy way to earn another settings-mismatch rejection.
   const duplexEl =
-    req.source === "Feeder" ? `\n  <scan:Duplex>${req.duplex ? "true" : "false"}</scan:Duplex>` : "";
+    req.source === "Feeder" ? `<scan:Duplex>${req.duplex ? "true" : "false"}</scan:Duplex>` : "";
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<scan:ScanSettings
-    xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"
-    xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">
-  <pwg:Version>${req.version}</pwg:Version>
-  <scan:Intent>${req.intent ?? "Document"}</scan:Intent>
-  <pwg:ScanRegions>
-    <pwg:ScanRegion>
-      <pwg:Height>${Math.round(req.height)}</pwg:Height>
-      <pwg:Width>${Math.round(req.width)}</pwg:Width>
-      <pwg:XOffset>0</pwg:XOffset>
-      <pwg:YOffset>0</pwg:YOffset>
-    </pwg:ScanRegion>
-  </pwg:ScanRegions>
-  <pwg:InputSource>${req.source}</pwg:InputSource>${duplexEl}
-${formatEl}
-  <scan:XResolution>${req.resolution}</scan:XResolution>
-  <scan:YResolution>${req.resolution}</scan:YResolution>
-  <scan:ColorMode>${req.colorMode}</scan:ColorMode>
-</scan:ScanSettings>`;
+  // Only sent when the device advertises support for them.
+  const tuning = [
+    req.compressionFactor != null
+      ? `<scan:CompressionFactor>${req.compressionFactor}</scan:CompressionFactor>`
+      : "",
+    req.brightness != null ? `<scan:Brightness>${req.brightness}</scan:Brightness>` : "",
+    req.contrast != null ? `<scan:Contrast>${req.contrast}</scan:Contrast>` : "",
+  ].join("");
+
+  return (
+    `<scan:ScanSettings` +
+    ` xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"` +
+    ` xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">` +
+    `<pwg:Version>${req.version}</pwg:Version>` +
+    `<scan:Intent>${req.intent ?? "Document"}</scan:Intent>` +
+    `<pwg:ScanRegions><pwg:ScanRegion>` +
+    `<pwg:Height>${Math.round(req.height)}</pwg:Height>` +
+    `<pwg:Width>${Math.round(req.width)}</pwg:Width>` +
+    `<pwg:XOffset>0</pwg:XOffset>` +
+    `<pwg:YOffset>0</pwg:YOffset>` +
+    `</pwg:ScanRegion></pwg:ScanRegions>` +
+    `<pwg:InputSource>${req.source}</pwg:InputSource>` +
+    duplexEl +
+    formatEl +
+    `<scan:XResolution>${req.resolution}</scan:XResolution>` +
+    `<scan:YResolution>${req.resolution}</scan:YResolution>` +
+    `<scan:ColorMode>${req.colorMode}</scan:ColorMode>` +
+    tuning +
+    `</scan:ScanSettings>`
+  );
 }
 
 export function capsForRequest(
