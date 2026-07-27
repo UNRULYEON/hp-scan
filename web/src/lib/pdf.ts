@@ -41,7 +41,7 @@ export async function bakeRotation(blob: Blob, rotation: number): Promise<Blob> 
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Could not get a 2D canvas context");
+  if (!ctx) throw new Error("Kan geen 2D-canvascontext maken");
 
   ctx.translate(w / 2, h / 2);
   ctx.rotate((rotation * Math.PI) / 180);
@@ -50,7 +50,7 @@ export async function bakeRotation(blob: Blob, rotation: number): Promise<Blob> 
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("Failed to encode rotated page"))),
+      (b) => (b ? resolve(b) : reject(new Error("Kan de gedraaide pagina niet opslaan"))),
       "image/jpeg",
       0.92,
     );
@@ -63,7 +63,7 @@ export type BuildPdfOptions = {
 };
 
 export async function buildPdf(pages: PdfPage[], opts: BuildPdfOptions = {}): Promise<Blob> {
-  if (pages.length === 0) throw new Error("There are no pages to save");
+  if (pages.length === 0) throw new Error("Er zijn geen pagina's om op te slaan");
 
   const pdf = await PDFDocument.create();
   pdf.setProducer("hp-scan");

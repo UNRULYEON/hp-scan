@@ -23,7 +23,7 @@ export type Scanner = {
 
 export class HelperUnavailableError extends Error {
   constructor() {
-    super("Cannot reach the hp-scan helper");
+    super("Kan de hp-scan-helper niet bereiken");
     this.name = "HelperUnavailableError";
   }
 }
@@ -46,7 +46,7 @@ export async function checkHelper(): Promise<{ version: string }> {
 
 export async function listScanners(): Promise<Scanner[]> {
   const res = await helperFetch("/v1/scanners");
-  if (!res.ok) throw new Error(`Helper returned ${res.status}`);
+  if (!res.ok) throw new Error(`Helper gaf status ${res.status} terug`);
   const body = (await res.json()) as { scanners: Scanner[] };
   return body.scanners;
 }
@@ -57,7 +57,7 @@ export async function addManualScanner(host: string, port = 80): Promise<Scanner
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ host, port }),
   });
-  if (!res.ok) throw new Error(`Could not add scanner at ${host}`);
+  if (!res.ok) throw new Error(`Kan de scanner op ${host} niet toevoegen`);
   const body = (await res.json()) as { scanner: Scanner };
   return body.scanner;
 }

@@ -23,9 +23,9 @@ import { PageGrid } from "./components/PageGrid";
 import type { ScanPage } from "./types";
 
 const COLOR_LABELS: Record<ColorMode, string> = {
-  RGB24: "Colour",
-  Grayscale8: "Greyscale",
-  BlackAndWhite1: "Black & white",
+  RGB24: "Kleur",
+  Grayscale8: "Grijstinten",
+  BlackAndWhite1: "Zwart-wit",
 };
 
 function defaultFilename(): string {
@@ -136,8 +136,8 @@ export default function App() {
         if (!cancelled) {
           setCaps(null);
           setError(
-            `Could not read the scanner's capabilities (${(err as Error).message}). ` +
-              `It may be asleep — try waking it and refreshing.`,
+            `Kan de mogelijkheden van de scanner niet uitlezen (${(err as Error).message}). ` +
+              `Mogelijk staat hij in slaapstand — wek hem en ververs de pagina.`,
           );
         }
       }
@@ -259,7 +259,7 @@ export default function App() {
       );
       downloadBlob(pdf, sanitizeFilename(filename));
     } catch (err) {
-      setError(`Could not build the PDF: ${(err as Error).message}`);
+      setError(`Kan de PDF niet maken: ${(err as Error).message}`);
     } finally {
       setSaving(false);
     }
@@ -288,11 +288,11 @@ export default function App() {
     <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-6 p-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Scan</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Scannen</h1>
           <p className="text-sm text-stone-500">
             {selected
               ? `${selected.model}${selected.isSimulator ? " (simulator)" : ""}`
-              : "Looking for scanners on your network…"}
+              : "Bezig met zoeken naar scanners op je netwerk…"}
           </p>
         </div>
         <StatusPill status={status} caps={caps} />
@@ -306,7 +306,7 @@ export default function App() {
               onChange={(e) => setSelectedId(e.target.value || null)}
               className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
             >
-              {scanners.length === 0 && <option value="">No scanners found</option>}
+              {scanners.length === 0 && <option value="">Geen scanners gevonden</option>}
               {scanners.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -319,7 +319,7 @@ export default function App() {
                   value={manualHost}
                   onChange={(e) => setManualHost(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddManual()}
-                  placeholder="Printer IP address"
+                  placeholder="IP-adres van printer"
                   className="min-w-0 flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm"
                 />
                 <button
@@ -327,27 +327,27 @@ export default function App() {
                   onClick={handleAddManual}
                   className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium hover:bg-stone-50"
                 >
-                  Add
+                  Toevoegen
                 </button>
               </div>
             )}
           </Field>
 
-          <Field label="Scan from">
+          <Field label="Scannen vanaf">
             <div className="grid grid-cols-2 gap-2">
               <Segmented
                 active={source === "Platen"}
                 disabled={!caps?.platen}
                 onClick={() => setSource("Platen")}
               >
-                Glass
+                Glasplaat
               </Segmented>
               <Segmented
                 active={source === "Feeder"}
                 disabled={!hasFeeder}
                 onClick={() => setSource("Feeder")}
               >
-                Feeder
+                Invoer
               </Segmented>
             </div>
             {source === "Feeder" && supportsDuplex && (
@@ -358,12 +358,12 @@ export default function App() {
                   onChange={(e) => setDuplex(e.target.checked)}
                   className="size-4 rounded border-stone-300"
                 />
-                Scan both sides
+                Beide zijden scannen
               </label>
             )}
           </Field>
 
-          <Field label="Colour">
+          <Field label="Kleur">
             <select
               value={colorMode}
               onChange={(e) => setColorMode(e.target.value as ColorMode)}
@@ -377,7 +377,7 @@ export default function App() {
             </select>
           </Field>
 
-          <Field label="Quality">
+          <Field label="Kwaliteit">
             <select
               value={resolution}
               onChange={(e) => setResolution(Number(e.target.value))}
@@ -385,13 +385,13 @@ export default function App() {
             >
               {(activeCaps?.resolutions ?? [300]).map((r) => (
                 <option key={r} value={r}>
-                  {r} dpi{r === 300 ? " — recommended" : ""}
+                  {r} dpi{r === 300 ? " — aanbevolen" : ""}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Page size">
+          <Field label="Paginaformaat">
             <select
               value={paperId}
               onChange={(e) => setPaperId(e.target.value)}
@@ -413,7 +413,7 @@ export default function App() {
               onClick={handleCancel}
               className="rounded-md bg-stone-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-stone-900"
             >
-              Stop — {progress} page{progress === 1 ? "" : "s"} so far
+              Stoppen — {progress} pagina{progress === 1 ? "" : "'s"} tot nu toe
             </button>
           ) : (
             <button
@@ -422,12 +422,12 @@ export default function App() {
               disabled={!selectedId || !caps}
               className="rounded-md bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-stone-300"
             >
-              {pages.length === 0 ? "Scan" : "Scan more pages"}
+              {pages.length === 0 ? "Scannen" : "Meer pagina's scannen"}
             </button>
           )}
 
           {source === "Feeder" && status && !status.adfLoaded && caps?.detectsPaperLoaded && (
-            <p className="-mt-2 text-xs text-amber-700">Put your documents in the feeder first.</p>
+            <p className="-mt-2 text-xs text-amber-700">Leg eerst je documenten in de invoer.</p>
           )}
         </aside>
 
@@ -436,7 +436,7 @@ export default function App() {
             <div className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
               <span>{error}</span>
               <button type="button" onClick={() => setError(null)} className="font-medium">
-                Dismiss
+                Sluiten
               </button>
             </div>
           )}
@@ -450,21 +450,21 @@ export default function App() {
                   <input
                     value={filename}
                     onChange={(e) => setFilename(e.target.value)}
-                    aria-label="File name"
+                    aria-label="Bestandsnaam"
                     className="min-w-0 flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm"
                   />
                   <span className="hidden shrink-0 text-sm text-stone-400 sm:inline">.pdf</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-stone-500">
-                    {pages.length} page{pages.length === 1 ? "" : "s"}
+                    {pages.length} pagina{pages.length === 1 ? "" : "'s"}
                   </span>
                   <button
                     type="button"
                     onClick={clearAll}
                     className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium hover:bg-stone-50"
                   >
-                    Clear
+                    Wissen
                   </button>
                   <button
                     type="button"
@@ -472,7 +472,7 @@ export default function App() {
                     disabled={saving}
                     className="rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:bg-stone-400"
                   >
-                    {saving ? "Preparing…" : "Download PDF"}
+                    {saving ? "Bezig…" : "PDF downloaden"}
                   </button>
                 </div>
               </div>
@@ -498,7 +498,7 @@ export default function App() {
         >
           <img
             src={previewPage.url}
-            alt="Full size page"
+            alt="Pagina op volledig formaat"
             style={{ transform: `rotate(${previewPage.rotation}deg)` }}
             className="max-h-full max-w-full rounded shadow-2xl"
           />
@@ -554,9 +554,9 @@ function StatusPill({ status, caps }: { status: ScannerStatus | null; caps: Capa
   return (
     <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium shadow-sm">
       <span className={`size-2 rounded-full ${busy ? "bg-amber-500" : "bg-emerald-500"}`} />
-      {busy ? "Busy" : "Ready"}
+      {busy ? "Bezig" : "Gereed"}
       {caps.detectsPaperLoaded && status?.adfLoaded && (
-        <span className="text-stone-500">· paper in feeder</span>
+        <span className="text-stone-500">· papier in invoer</span>
       )}
     </div>
   );
@@ -566,14 +566,14 @@ function EmptyState({ scanning, source }: { scanning: boolean; source: InputSour
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300 bg-white/60 p-16 text-center">
       <p className="text-lg font-medium text-stone-700">
-        {scanning ? "Scanning…" : "No pages yet"}
+        {scanning ? "Bezig met scannen…" : "Nog geen pagina's"}
       </p>
       <p className="max-w-sm text-sm text-stone-500">
         {scanning
-          ? "Pages appear here as they come off the scanner."
+          ? "Pagina's verschijnen hier zodra ze uit de scanner komen."
           : source === "Feeder"
-            ? "Load your documents into the feeder and press Scan."
-            : "Put a page on the glass and press Scan. You can keep adding pages one at a time."}
+            ? "Leg je documenten in de invoer en klik op Scannen."
+            : "Leg een pagina op de glasplaat en klik op Scannen. Je kunt pagina voor pagina blijven toevoegen."}
       </p>
     </div>
   );
@@ -583,20 +583,20 @@ function HelperMissing({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="flex min-h-full items-center justify-center p-8">
       <div className="max-w-lg rounded-xl border border-stone-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold">Scan helper isn't running</h1>
+        <h1 className="text-xl font-semibold">De scanhelper draait niet</h1>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          This page needs a small helper program running on your computer to find and talk to your
-          printer. Browsers can't reach printers on their own.
+          Deze pagina heeft een klein hulpprogramma op je computer nodig om je printer te vinden en
+          ermee te communiceren. Browsers kunnen printers niet zelf bereiken.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          Start <span className="font-medium">hp-scan-helper</span>, then try again.
+          Start <span className="font-medium">hp-scan-helper</span> en probeer het opnieuw.
         </p>
         <button
           type="button"
           onClick={onRetry}
           className="mt-6 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
         >
-          Try again
+          Opnieuw proberen
         </button>
       </div>
     </div>

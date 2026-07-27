@@ -136,12 +136,12 @@ function parseSourceCaps(el: Element | undefined): SourceCaps | undefined {
 
 export function parseCapabilities(xml: string): Capabilities {
   const doc = new DOMParser().parseFromString(xml, "text/xml");
-  if (local(doc, "parsererror")) throw new Error("Scanner returned malformed capabilities XML");
+  if (local(doc, "parsererror")) throw new Error("De scanner gaf ongeldige XML met mogelijkheden terug");
 
   const adfOptions = localAll(doc, "AdfOption").map((o) => o.textContent?.trim() ?? "");
 
   return {
-    makeAndModel: local(doc, "MakeAndModel")?.textContent?.trim() ?? "Unknown scanner",
+    makeAndModel: local(doc, "MakeAndModel")?.textContent?.trim() ?? "Onbekende scanner",
     serialNumber: local(doc, "SerialNumber")?.textContent?.trim() ?? "",
     version: local(doc, "Version")?.textContent?.trim() ?? "",
     platen: parseSourceCaps(local(doc, "PlatenInputCaps")),
@@ -156,7 +156,7 @@ export function parseStatus(xml: string): ScannerStatus {
   const doc = new DOMParser().parseFromString(xml, "text/xml");
   const adfState = local(doc, "AdfState")?.textContent?.trim();
   return {
-    state: local(doc, "State")?.textContent?.trim() ?? "Unknown",
+    state: local(doc, "State")?.textContent?.trim() ?? "Onbekend",
     adfState,
     adfLoaded: adfState === "ScannerAdfLoaded",
   };

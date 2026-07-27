@@ -34,13 +34,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function describeCreateFailure(status: number): string {
   switch (status) {
     case 409:
-      return "The scanner is busy or the document feeder is empty.";
+      return "De scanner is bezig of de documentinvoer is leeg.";
     case 503:
-      return "The scanner is warming up or in use. Try again in a moment.";
+      return "De scanner start op of is in gebruik. Probeer het zo meteen opnieuw.";
     case 404:
-      return "The scanner did not accept the job. It may not support scanning over the network.";
+      return "De scanner heeft de opdracht niet geaccepteerd. Mogelijk ondersteunt hij scannen via het netwerk niet.";
     default:
-      return `The scanner rejected the scan job (HTTP ${status}).`;
+      return `De scanner heeft de scanopdracht geweigerd (HTTP ${status}).`;
   }
 }
 
@@ -64,7 +64,7 @@ export async function runScanJob(
   // The helper rewrites Location to a helper-relative path. Some browsers hide
   // `location` on cross-origin responses, so the helper mirrors it too.
   const jobPath = create.headers.get("x-escl-location") ?? create.headers.get("location");
-  if (!jobPath) throw new ScanError("Scanner accepted the job but returned no job URL.");
+  if (!jobPath) throw new ScanError("De scanner accepteerde de opdracht maar gaf geen opdracht-URL terug.");
   events.onJobCreated?.(jobPath);
 
   const pages: ScannedImage[] = [];
@@ -90,7 +90,7 @@ export async function runScanJob(
       }
 
       if (!res.ok) {
-        throw new ScanError(`Scanner failed while sending a page (HTTP ${res.status}).`, res.status);
+        throw new ScanError(`De scanner gaf een fout tijdens het versturen van een pagina (HTTP ${res.status}).`, res.status);
       }
 
       const blob = await res.blob();

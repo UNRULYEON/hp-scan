@@ -43,12 +43,12 @@ function PageCard({ page, position, onRotate, onDelete, onPreview }: PageCardPro
         {...attributes}
         {...listeners}
         className="cursor-grab touch-none p-2 active:cursor-grabbing"
-        aria-label={`Page ${position}, drag to reorder`}
+        aria-label={`Pagina ${position}, sleep om de volgorde te wijzigen`}
       >
         <div className="flex aspect-[1/1.414] items-center justify-center overflow-hidden rounded bg-stone-50">
           <img
             src={page.url}
-            alt={`Page ${position}`}
+            alt={`Pagina ${position}`}
             draggable={false}
             className="max-h-full max-w-full object-contain transition-transform"
             style={{
@@ -69,7 +69,7 @@ function PageCard({ page, position, onRotate, onDelete, onPreview }: PageCardPro
           <button
             type="button"
             onClick={() => onRotate(page.id, -90)}
-            title="Rotate left"
+            title="Naar links draaien"
             className="rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-stone-900"
           >
             <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -79,7 +79,7 @@ function PageCard({ page, position, onRotate, onDelete, onPreview }: PageCardPro
           <button
             type="button"
             onClick={() => onRotate(page.id, 90)}
-            title="Rotate right"
+            title="Naar rechts draaien"
             className="rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-stone-900"
           >
             <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -89,7 +89,7 @@ function PageCard({ page, position, onRotate, onDelete, onPreview }: PageCardPro
           <button
             type="button"
             onClick={() => onPreview(page.id)}
-            title="View full size"
+            title="Volledig formaat bekijken"
             className="rounded p-1 text-stone-500 hover:bg-stone-100 hover:text-stone-900"
           >
             <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -100,7 +100,7 @@ function PageCard({ page, position, onRotate, onDelete, onPreview }: PageCardPro
           <button
             type="button"
             onClick={() => onDelete(page.id)}
-            title="Delete page"
+            title="Pagina verwijderen"
             className="rounded p-1 text-stone-500 hover:bg-red-50 hover:text-red-600"
           >
             <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6">
