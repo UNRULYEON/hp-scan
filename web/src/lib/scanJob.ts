@@ -44,18 +44,60 @@ function describeCreateFailure(status: number): string {
   }
 }
 
+/**
+ * Version numbers to try in ScanSettings, best first.
+ *
+ * The accepted value is not discoverable: it appears in neither
+ * ScannerCapabilities nor eSCLConfig. 2.1 is what an OfficeJet Pro 7740's own
+ * web UI sends and what it accepts; 2.0 and 2.6 cover other firmware.
+ */
+const VERSION_CANDIDATES = ["2.1", "2.0", "2.6", "2.63"];
+
+/** True when a 409 body blames /ScanSettings/Version specifically. */
+function isVersionRejection(body: string): boolean {
+  return /ScanSettings\/Version/i.test(body);
+}
+
+async function createJob(
+  scannerId: string,
+  req: ScanRequest,
+  signal?: AbortSignal,
+): Promise<Response> {
+  // Try the caller's version first, then the known-good ones.
+  const versions = [req.version, ...VERSION_CANDIDATES].filter(
+    (v, i, all) => v && all.indexOf(v) === i,
+  );
+
+  let last: Response | null = null;
+  for (const version of versions) {
+    const res = await esclFetch(scannerId, "/ScanJobs", {
+      method: "POST",
+      headers: { "content-type": "text/xml" },
+      body: buildScanSettings({ ...req, version }),
+      signal,
+    });
+
+    if (res.status === 201) return res;
+
+    // Only a version complaint is worth retrying; anything else is a real
+    // problem (busy device, empty feeder, unsupported settings).
+    if (res.status !== 409) return res;
+    const body = await res.clone().text().catch(() => "");
+    if (!isVersionRejection(body)) return res;
+
+    console.warn(`[scan] device rejected ScanSettings version ${version}, trying next`);
+    last = res;
+  }
+  return last!;
+}
+
 export async function runScanJob(
   scannerId: string,
   req: ScanRequest,
   events: ScanJobEvents = {},
   signal?: AbortSignal,
 ): Promise<ScannedImage[]> {
-  const create = await esclFetch(scannerId, "/ScanJobs", {
-    method: "POST",
-    headers: { "content-type": "text/xml" },
-    body: buildScanSettings(req),
-    signal,
-  });
+  const create = await createJob(scannerId, req, signal);
 
   if (create.status !== 201) {
     throw new ScanError(describeCreateFailure(create.status), create.status);

@@ -70,10 +70,16 @@ export type ScanRequest = {
   width: number;
   height: number;
   /**
-   * The eSCL version the device reports in its capabilities. It must be echoed
-   * back verbatim: an OfficeJet Pro 7740 (which reports 2.5) rejects a job
-   * quoting any other version with
+   * Schema version quoted in the ScanSettings document.
+   *
+   * This is NOT the version from ScannerCapabilities. An OfficeJet Pro 7740
+   * reports 2.5 in its capabilities but only accepts 2.1 here; quoting the
+   * capabilities version earns
    *   409 conflictWithExisting /ScanSettings/Version "Input Settings Mismatch"
+   *
+   * There is no way to discover the accepted value — it is not in the
+   * capabilities or in eSCLConfig — so callers pass candidates and the job
+   * runner works out which one the device will take.
    */
   version: string;
   /** Whether to send scan:DocumentFormatExt rather than pwg:DocumentFormat. */

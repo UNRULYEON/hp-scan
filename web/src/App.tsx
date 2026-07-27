@@ -209,8 +209,9 @@ export default function App() {
           resolution,
           width,
           height,
-          // Echoed back to the device verbatim; it rejects any other value.
-          version: caps?.version ?? "2.5",
+          // Deliberately not caps.version: the 7740 reports 2.5 there but only
+          // accepts 2.1 in ScanSettings. runScanJob falls back if this is wrong.
+          version: "2.1",
           useFormatExt: activeCaps?.supportsFormatExt ?? false,
         },
         {
