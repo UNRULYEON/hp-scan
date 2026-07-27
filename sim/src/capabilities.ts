@@ -1,103 +1,274 @@
 /**
  * ScannerCapabilities for an HP OfficeJet Pro 7740 Wide Format AiO.
  *
- * Dimensions are in eSCL units of 1/300 inch. The 7740 takes up to A3 / 11x17
- * on both the platen and the (duplexing, 35-sheet) feeder:
- *   11.69in * 300 = 3507   17in * 300 = 5100
- *
- * These values are modelled on the device's published specs. When the real
- * printer is on hand, replace this wholesale with a verbatim dump of
- * GET /eSCL/ScannerCapabilities so the simulator is byte-accurate.
+ * This is a verbatim capture from a real device (serial redacted), not a
+ * reconstruction from spec — so the simulator agrees with the hardware on the
+ * details that actually bite: it reports eSCL version 2.5, the platen goes
+ * to 3508x5110 while the feeder stops at Legal (2550x4200), the feeder tops out
+ * at 300dpi, and neither source offers BlackAndWhite1.
  */
 
-const MAX_W = 3507;
-const MAX_H = 5100;
-
-const PLATEN_RESOLUTIONS = [75, 100, 200, 300, 600, 1200];
-const FEEDER_RESOLUTIONS = [75, 100, 200, 300, 600];
-
-function discreteResolutions(dpis: number[]): string {
-  return dpis
-    .map(
-      (d) => `            <scan:DiscreteResolution>
-              <scan:XResolution>${d}</scan:XResolution>
-              <scan:YResolution>${d}</scan:YResolution>
-            </scan:DiscreteResolution>`,
-    )
-    .join("\n");
-}
-
-function settingProfile(dpis: number[]): string {
-  return `        <scan:SettingProfile>
-          <scan:ColorModes>
-            <scan:ColorMode>BlackAndWhite1</scan:ColorMode>
-            <scan:ColorMode>Grayscale8</scan:ColorMode>
-            <scan:ColorMode>RGB24</scan:ColorMode>
-          </scan:ColorModes>
-          <scan:DocumentFormats>
-            <pwg:DocumentFormat>application/pdf</pwg:DocumentFormat>
-            <pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>
-            <scan:DocumentFormatExt>application/pdf</scan:DocumentFormatExt>
-            <scan:DocumentFormatExt>image/jpeg</scan:DocumentFormatExt>
-          </scan:DocumentFormats>
-          <scan:SupportedResolutions>
-            <scan:DiscreteResolutions>
-${discreteResolutions(dpis)}
-            </scan:DiscreteResolutions>
-          </scan:SupportedResolutions>
-        </scan:SettingProfile>`;
-}
-
-function inputCaps(dpis: number[]): string {
-  return `      <scan:MinWidth>16</scan:MinWidth>
-      <scan:MaxWidth>${MAX_W}</scan:MaxWidth>
-      <scan:MinHeight>16</scan:MinHeight>
-      <scan:MaxHeight>${MAX_H}</scan:MaxHeight>
-      <scan:MaxScanRegions>1</scan:MaxScanRegions>
-      <scan:SettingProfiles>
-${settingProfile(dpis)}
-      </scan:SettingProfiles>
-      <scan:MaxOpticalXResolution>1200</scan:MaxOpticalXResolution>
-      <scan:MaxOpticalYResolution>1200</scan:MaxOpticalYResolution>`;
-}
+export const SCANNER_VERSION = "2.5";
 
 export const SCANNER_CAPABILITIES = `<?xml version="1.0" encoding="UTF-8"?>
-<scan:ScannerCapabilities
-    xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"
-    xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">
-  <pwg:Version>2.63</pwg:Version>
-  <pwg:MakeAndModel>HP OfficeJet Pro 7740</pwg:MakeAndModel>
-  <pwg:SerialNumber>CN0SIM0001</pwg:SerialNumber>
-  <scan:UUID>3ca9a1d0-1f4b-4c8a-9f1e-0a5b7c2d9e00</scan:UUID>
-  <scan:AdminURI>http://%HOST%/</scan:AdminURI>
-  <scan:IconURI>http://%HOST%/icon.png</scan:IconURI>
-  <scan:Platen>
-    <scan:PlatenInputCaps>
-${inputCaps(PLATEN_RESOLUTIONS)}
-    </scan:PlatenInputCaps>
-  </scan:Platen>
-  <scan:Adf>
-    <scan:AdfSimplexInputCaps>
-${inputCaps(FEEDER_RESOLUTIONS)}
-    </scan:AdfSimplexInputCaps>
-    <scan:AdfDuplexInputCaps>
-${inputCaps(FEEDER_RESOLUTIONS)}
-    </scan:AdfDuplexInputCaps>
-    <scan:FeederCapacity>35</scan:FeederCapacity>
-    <scan:AdfOptions>
-      <scan:AdfOption>DetectPaperLoaded</scan:AdfOption>
-      <scan:AdfOption>Duplex</scan:AdfOption>
-    </scan:AdfOptions>
-  </scan:Adf>
-  <scan:CompressionFactorSupport>
-    <scan:Min>1</scan:Min>
-    <scan:Max>100</scan:Max>
-    <scan:Normal>50</scan:Normal>
-    <scan:Step>1</scan:Step>
-  </scan:CompressionFactorSupport>
+<!-- THIS DATA SUBJECT TO DISCLAIMER(S) INCLUDED WITH THE PRODUCT OF ORIGIN. -->
+<scan:ScannerCapabilities xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03" xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm" xmlns:dest="http://schemas.hp.com/imaging/destination/2011/06/06" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://schemas.hp.com/imaging/escl/2011/05/03 ../../schemas/eSCL.xsd">
+	<pwg:Version>2.5</pwg:Version>
+	<pwg:MakeAndModel>OfficeJet Pro 7740 Wide Format All-in-One</pwg:MakeAndModel>
+	<pwg:SerialNumber>CN0SIM0001</pwg:SerialNumber>
+	<scan:Platen>
+		<scan:PlatenInputCaps>
+			<scan:MinWidth>8</scan:MinWidth>
+			<scan:MaxWidth>3508</scan:MaxWidth>
+			<scan:MinHeight>8</scan:MinHeight>
+			<scan:MaxHeight>5110</scan:MaxHeight>
+			<scan:MinPageWidth>8</scan:MinPageWidth>
+			<scan:MinPageHeight>8</scan:MinPageHeight>
+			<scan:MaxScanRegions>1</scan:MaxScanRegions>
+			<scan:SettingProfiles>
+				<scan:SettingProfile>
+					<scan:ColorModes>
+						<scan:ColorMode>Grayscale8</scan:ColorMode>
+						<scan:ColorMode>RGB24</scan:ColorMode>
+					</scan:ColorModes>
+					<scan:ContentTypes>
+						<pwg:ContentType>Photo</pwg:ContentType>
+						<pwg:ContentType>Text</pwg:ContentType>
+						<pwg:ContentType>TextAndPhoto</pwg:ContentType>
+					</scan:ContentTypes>
+					<scan:DocumentFormats>
+						<pwg:DocumentFormat>application/octet-stream</pwg:DocumentFormat>
+						<pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>
+						<pwg:DocumentFormat>application/pdf</pwg:DocumentFormat>
+						<scan:DocumentFormatExt>application/octet-stream</scan:DocumentFormatExt>
+						<scan:DocumentFormatExt>image/jpeg</scan:DocumentFormatExt>
+						<scan:DocumentFormatExt>application/pdf</scan:DocumentFormatExt>
+					</scan:DocumentFormats>
+					<scan:SupportedResolutions>
+						<scan:DiscreteResolutions>
+							<scan:DiscreteResolution>
+								<scan:XResolution>75</scan:XResolution>
+								<scan:YResolution>75</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>100</scan:XResolution>
+								<scan:YResolution>100</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>200</scan:XResolution>
+								<scan:YResolution>200</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>300</scan:XResolution>
+								<scan:YResolution>300</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>600</scan:XResolution>
+								<scan:YResolution>600</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>1200</scan:XResolution>
+								<scan:YResolution>1200</scan:YResolution>
+							</scan:DiscreteResolution>
+						</scan:DiscreteResolutions>
+					</scan:SupportedResolutions>
+					<scan:ColorSpaces>
+						<scan:ColorSpace>YCC</scan:ColorSpace>
+						<scan:ColorSpace>RGB</scan:ColorSpace>
+						<scan:ColorSpace>sRGB</scan:ColorSpace>
+					</scan:ColorSpaces>
+				</scan:SettingProfile>
+			</scan:SettingProfiles>
+			<scan:SupportedIntents>
+				<scan:Intent>Document</scan:Intent>
+				<scan:Intent>Photo</scan:Intent>
+				<scan:Intent>Preview</scan:Intent>
+				<scan:Intent>TextAndGraphic</scan:Intent>
+			</scan:SupportedIntents>
+			<scan:MaxOpticalXResolution>1200</scan:MaxOpticalXResolution>
+			<scan:MaxOpticalYResolution>1200</scan:MaxOpticalYResolution>
+			<scan:RiskyLeftMargin>45</scan:RiskyLeftMargin>
+			<scan:RiskyRightMargin>18</scan:RiskyRightMargin>
+			<scan:RiskyTopMargin>48</scan:RiskyTopMargin>
+			<scan:RiskyBottomMargin>10</scan:RiskyBottomMargin>
+		</scan:PlatenInputCaps>
+	</scan:Platen>
+	<scan:Adf>
+		<scan:AdfSimplexInputCaps>
+			<scan:MinWidth>8</scan:MinWidth>
+			<scan:MaxWidth>2550</scan:MaxWidth>
+			<scan:MinHeight>8</scan:MinHeight>
+			<scan:MaxHeight>4200</scan:MaxHeight>
+			<scan:MinPageWidth>1200</scan:MinPageWidth>
+			<scan:MinPageHeight>1800</scan:MinPageHeight>
+			<scan:MaxScanRegions>1</scan:MaxScanRegions>
+			<scan:SettingProfiles>
+				<scan:SettingProfile>
+					<scan:ColorModes>
+						<scan:ColorMode>Grayscale8</scan:ColorMode>
+						<scan:ColorMode>RGB24</scan:ColorMode>
+					</scan:ColorModes>
+					<scan:ContentTypes>
+						<pwg:ContentType>Photo</pwg:ContentType>
+						<pwg:ContentType>Text</pwg:ContentType>
+						<pwg:ContentType>TextAndPhoto</pwg:ContentType>
+					</scan:ContentTypes>
+					<scan:DocumentFormats>
+						<pwg:DocumentFormat>application/octet-stream</pwg:DocumentFormat>
+						<pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>
+						<pwg:DocumentFormat>application/pdf</pwg:DocumentFormat>
+						<scan:DocumentFormatExt>application/octet-stream</scan:DocumentFormatExt>
+						<scan:DocumentFormatExt>image/jpeg</scan:DocumentFormatExt>
+						<scan:DocumentFormatExt>application/pdf</scan:DocumentFormatExt>
+					</scan:DocumentFormats>
+					<scan:SupportedResolutions>
+						<scan:DiscreteResolutions>
+							<scan:DiscreteResolution>
+								<scan:XResolution>75</scan:XResolution>
+								<scan:YResolution>75</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>100</scan:XResolution>
+								<scan:YResolution>100</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>200</scan:XResolution>
+								<scan:YResolution>200</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>300</scan:XResolution>
+								<scan:YResolution>300</scan:YResolution>
+							</scan:DiscreteResolution>
+						</scan:DiscreteResolutions>
+					</scan:SupportedResolutions>
+					<scan:ColorSpaces>
+						<scan:ColorSpace>YCC</scan:ColorSpace>
+						<scan:ColorSpace>RGB</scan:ColorSpace>
+						<scan:ColorSpace>sRGB</scan:ColorSpace>
+					</scan:ColorSpaces>
+				</scan:SettingProfile>
+			</scan:SettingProfiles>
+			<scan:SupportedIntents>
+				<scan:Intent>Document</scan:Intent>
+				<scan:Intent>Photo</scan:Intent>
+				<scan:Intent>Preview</scan:Intent>
+				<scan:Intent>TextAndGraphic</scan:Intent>
+			</scan:SupportedIntents>
+			<scan:EdgeAutoDetection>
+				<scan:SupportedEdge>BottomEdge</scan:SupportedEdge>
+			</scan:EdgeAutoDetection>
+			<scan:MaxOpticalXResolution>300</scan:MaxOpticalXResolution>
+			<scan:MaxOpticalYResolution>300</scan:MaxOpticalYResolution>
+			<scan:RiskyLeftMargin>36</scan:RiskyLeftMargin>
+			<scan:RiskyRightMargin>0</scan:RiskyRightMargin>
+			<scan:RiskyTopMargin>35</scan:RiskyTopMargin>
+			<scan:RiskyBottomMargin>35</scan:RiskyBottomMargin>
+		</scan:AdfSimplexInputCaps>
+		<scan:AdfDuplexInputCaps>
+			<scan:MinWidth>8</scan:MinWidth>
+			<scan:MaxWidth>2550</scan:MaxWidth>
+			<scan:MinHeight>8</scan:MinHeight>
+			<scan:MaxHeight>4200</scan:MaxHeight>
+			<scan:MinPageWidth>1200</scan:MinPageWidth>
+			<scan:MinPageHeight>1800</scan:MinPageHeight>
+			<scan:MaxScanRegions>1</scan:MaxScanRegions>
+			<scan:SettingProfiles>
+				<scan:SettingProfile>
+					<scan:ColorModes>
+						<scan:ColorMode>Grayscale8</scan:ColorMode>
+						<scan:ColorMode>RGB24</scan:ColorMode>
+					</scan:ColorModes>
+					<scan:ContentTypes>
+						<pwg:ContentType>Photo</pwg:ContentType>
+						<pwg:ContentType>Text</pwg:ContentType>
+						<pwg:ContentType>TextAndPhoto</pwg:ContentType>
+					</scan:ContentTypes>
+					<scan:DocumentFormats>
+						<pwg:DocumentFormat>application/octet-stream</pwg:DocumentFormat>
+						<pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>
+						<pwg:DocumentFormat>application/pdf</pwg:DocumentFormat>
+						<scan:DocumentFormatExt>application/octet-stream</scan:DocumentFormatExt>
+						<scan:DocumentFormatExt>image/jpeg</scan:DocumentFormatExt>
+						<scan:DocumentFormatExt>application/pdf</scan:DocumentFormatExt>
+					</scan:DocumentFormats>
+					<scan:SupportedResolutions>
+						<scan:DiscreteResolutions>
+							<scan:DiscreteResolution>
+								<scan:XResolution>75</scan:XResolution>
+								<scan:YResolution>75</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>100</scan:XResolution>
+								<scan:YResolution>100</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>200</scan:XResolution>
+								<scan:YResolution>200</scan:YResolution>
+							</scan:DiscreteResolution>
+							<scan:DiscreteResolution>
+								<scan:XResolution>300</scan:XResolution>
+								<scan:YResolution>300</scan:YResolution>
+							</scan:DiscreteResolution>
+						</scan:DiscreteResolutions>
+					</scan:SupportedResolutions>
+					<scan:ColorSpaces>
+						<scan:ColorSpace>YCC</scan:ColorSpace>
+						<scan:ColorSpace>RGB</scan:ColorSpace>
+						<scan:ColorSpace>sRGB</scan:ColorSpace>
+					</scan:ColorSpaces>
+				</scan:SettingProfile>
+			</scan:SettingProfiles>
+			<scan:SupportedIntents>
+				<scan:Intent>Document</scan:Intent>
+				<scan:Intent>Photo</scan:Intent>
+				<scan:Intent>Preview</scan:Intent>
+				<scan:Intent>TextAndGraphic</scan:Intent>
+			</scan:SupportedIntents>
+			<scan:EdgeAutoDetection>
+				<scan:SupportedEdge>BottomEdge</scan:SupportedEdge>
+			</scan:EdgeAutoDetection>
+			<scan:MaxOpticalXResolution>300</scan:MaxOpticalXResolution>
+			<scan:MaxOpticalYResolution>300</scan:MaxOpticalYResolution>
+			<scan:RiskyLeftMargin>36</scan:RiskyLeftMargin>
+			<scan:RiskyRightMargin>0</scan:RiskyRightMargin>
+			<scan:RiskyTopMargin>35</scan:RiskyTopMargin>
+			<scan:RiskyBottomMargin>35</scan:RiskyBottomMargin>
+		</scan:AdfDuplexInputCaps>
+		<scan:FeederCapacity>35</scan:FeederCapacity>
+		<scan:AdfOptions>
+			<scan:AdfOption>DetectPaperLoaded</scan:AdfOption>
+			<scan:AdfOption>Duplex</scan:AdfOption>
+		</scan:AdfOptions>
+	</scan:Adf>
+	<scan:BrightnessSupport>
+		<scan:Min>0</scan:Min>
+		<scan:Max>2000</scan:Max>
+		<scan:Normal>1000</scan:Normal>
+		<scan:Step>1</scan:Step>
+	</scan:BrightnessSupport>
+	<scan:ContrastSupport>
+		<scan:Min>0</scan:Min>
+		<scan:Max>2000</scan:Max>
+		<scan:Normal>1000</scan:Normal>
+		<scan:Step>1</scan:Step>
+	</scan:ContrastSupport>
+	<scan:ThresholdSupport>
+		<scan:Min>0</scan:Min>
+		<scan:Max>255</scan:Max>
+		<scan:Normal>128</scan:Normal>
+		<scan:Step>1</scan:Step>
+	</scan:ThresholdSupport>
+	<scan:eSCLConfigCap>
+		<scan:StateSupport>
+			<scan:State>disabled</scan:State>
+			<scan:State>enabled</scan:State>
+		</scan:StateSupport>
+	</scan:eSCLConfigCap>
+	<scan:JobSourceInfoSupport>true</scan:JobSourceInfoSupport>
 </scan:ScannerCapabilities>
 `;
 
-export function capabilitiesFor(host: string): string {
-  return SCANNER_CAPABILITIES.replaceAll("%HOST%", host);
+export function capabilitiesFor(_host: string): string {
+  // The real dump carries no host-specific URLs, so nothing to substitute.
+  return SCANNER_CAPABILITIES;
 }

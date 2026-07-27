@@ -39,6 +39,8 @@ export type SourceCaps = {
   resolutions: number[];
   colorModes: ColorMode[];
   formats: string[];
+  /** The device offers scan:DocumentFormatExt, which supersedes pwg:DocumentFormat. */
+  supportsFormatExt: boolean;
 };
 
 export type Capabilities = {
@@ -67,6 +69,15 @@ export type ScanRequest = {
   resolution: number;
   width: number;
   height: number;
+  /**
+   * The eSCL version the device reports in its capabilities. It must be echoed
+   * back verbatim: an OfficeJet Pro 7740 (which reports 2.5) rejects a job
+   * quoting any other version with
+   *   409 conflictWithExisting /ScanSettings/Version "Input Settings Mismatch"
+   */
+  version: string;
+  /** Whether to send scan:DocumentFormatExt rather than pwg:DocumentFormat. */
+  useFormatExt: boolean;
   /** eSCL "Intent" — hints the device's own image processing. */
   intent?: "Document" | "Photo" | "TextAndGraphic" | "Preview";
 };
@@ -124,6 +135,7 @@ function parseSourceCaps(el: Element | undefined): SourceCaps | undefined {
   ];
 
   return {
+    supportsFormatExt: localAll(el, "DocumentFormatExt").length > 0,
     minWidth: num(el, "MinWidth", 16),
     maxWidth: num(el, "MaxWidth", 2550),
     minHeight: num(el, "MinHeight", 16),
@@ -143,7 +155,7 @@ export function parseCapabilities(xml: string): Capabilities {
   return {
     makeAndModel: local(doc, "MakeAndModel")?.textContent?.trim() ?? "Onbekende scanner",
     serialNumber: local(doc, "SerialNumber")?.textContent?.trim() ?? "",
-    version: local(doc, "Version")?.textContent?.trim() ?? "",
+    version: local(doc, "Version")?.textContent?.trim() || "2.5",
     platen: parseSourceCaps(local(doc, "PlatenInputCaps")),
     adfSimplex: parseSourceCaps(local(doc, "AdfSimplexInputCaps")),
     adfDuplex: parseSourceCaps(local(doc, "AdfDuplexInputCaps")),
@@ -167,28 +179,40 @@ export function parseStatus(xml: string): ScannerStatus {
 export function buildScanSettings(req: ScanRequest): string {
   // Some firmware rejects a job whose region exceeds the source's maximum, so
   // callers are expected to have clamped width/height to the source caps.
+  //
+  // Element order matters. The PWG schema declares ScanRegion as a sequence,
+  // and HP firmware validates against it, so Height/Width/XOffset/YOffset must
+  // appear in that order. ContentRegionUnits is deliberately omitted: it is
+  // optional, and the 7740's own web UI omits it on requests that succeed.
+  const format = "image/jpeg";
+  const formatEl = req.useFormatExt
+    ? `  <scan:DocumentFormatExt>${format}</scan:DocumentFormatExt>`
+    : `  <pwg:DocumentFormat>${format}</pwg:DocumentFormat>`;
+
+  // Duplex is only meaningful for the feeder, and sending it for the platen is
+  // an easy way to earn another settings-mismatch rejection.
+  const duplexEl =
+    req.source === "Feeder" ? `\n  <scan:Duplex>${req.duplex ? "true" : "false"}</scan:Duplex>` : "";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <scan:ScanSettings
     xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"
     xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">
-  <pwg:Version>2.63</pwg:Version>
+  <pwg:Version>${req.version}</pwg:Version>
   <scan:Intent>${req.intent ?? "Document"}</scan:Intent>
   <pwg:ScanRegions>
     <pwg:ScanRegion>
+      <pwg:Height>${Math.round(req.height)}</pwg:Height>
+      <pwg:Width>${Math.round(req.width)}</pwg:Width>
       <pwg:XOffset>0</pwg:XOffset>
       <pwg:YOffset>0</pwg:YOffset>
-      <pwg:Width>${Math.round(req.width)}</pwg:Width>
-      <pwg:Height>${Math.round(req.height)}</pwg:Height>
-      <pwg:ContentRegionUnits>escl:ThreeHundredthsOfInches</pwg:ContentRegionUnits>
     </pwg:ScanRegion>
   </pwg:ScanRegions>
-  <pwg:InputSource>${req.source}</pwg:InputSource>
-  <scan:Duplex>${req.duplex ? "true" : "false"}</scan:Duplex>
-  <scan:ColorMode>${req.colorMode}</scan:ColorMode>
+  <pwg:InputSource>${req.source}</pwg:InputSource>${duplexEl}
+${formatEl}
   <scan:XResolution>${req.resolution}</scan:XResolution>
   <scan:YResolution>${req.resolution}</scan:YResolution>
-  <pwg:DocumentFormat>image/jpeg</pwg:DocumentFormat>
-  <scan:DocumentFormatExt>image/jpeg</scan:DocumentFormatExt>
+  <scan:ColorMode>${req.colorMode}</scan:ColorMode>
 </scan:ScanSettings>`;
 }
 

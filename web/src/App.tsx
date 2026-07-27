@@ -202,7 +202,17 @@ export default function App() {
     try {
       await runScanJob(
         selectedId,
-        { source, duplex: source === "Feeder" && duplex, colorMode, resolution, width, height },
+        {
+          source,
+          duplex: source === "Feeder" && duplex,
+          colorMode,
+          resolution,
+          width,
+          height,
+          // Echoed back to the device verbatim; it rejects any other value.
+          version: caps?.version ?? "2.5",
+          useFormatExt: activeCaps?.supportsFormatExt ?? false,
+        },
         {
           onPage: (page) => {
             // Append as each sheet arrives so the user sees progress live.
