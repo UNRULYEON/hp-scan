@@ -18,6 +18,8 @@ export type Scanner = {
   sources: string[];
   duplex: boolean;
   isSimulator: boolean;
+  /** True for entries the user typed in by hand; only these can be removed. */
+  isManual: boolean;
   lastSeen: number;
 };
 
@@ -60,6 +62,12 @@ export async function addManualScanner(host: string, port = 80): Promise<Scanner
   if (!res.ok) throw new Error(`Kan de scanner op ${host} niet toevoegen`);
   const body = (await res.json()) as { scanner: Scanner };
   return body.scanner;
+}
+
+/** Remove a manually added scanner. Discovered ones cannot be removed. */
+export async function removeScanner(id: string): Promise<void> {
+  const res = await helperFetch(`/v1/scanners/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Kan de scanner niet verwijderen");
 }
 
 /** Issue a request against a scanner's eSCL interface via the helper proxy. */

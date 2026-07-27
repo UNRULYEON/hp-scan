@@ -12,6 +12,7 @@ import {
 import {
   HelperUnavailableError,
   addManualScanner,
+  removeScanner,
   checkHelper,
   esclFetch,
   listScanners,
@@ -42,6 +43,7 @@ export default function App() {
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [status, setStatus] = useState<ScannerStatus | null>(null);
   const [manualHost, setManualHost] = useState("");
+  const [showManualAdd, setShowManualAdd] = useState(false);
 
   // --- scan settings ------------------------------------------------------
   const [source, setSource] = useState<InputSource>("Platen");
@@ -271,8 +273,24 @@ export default function App() {
     try {
       const s = await addManualScanner(host);
       setManualHost("");
+      setShowManualAdd(false);
       await refreshScanners();
       setSelectedId(s.id);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function handleRemoveScanner(id: string) {
+    try {
+      await removeScanner(id);
+      // Drop the selection so the next discovered scanner is picked up, rather
+      // than leaving the UI pointing at an id the helper no longer knows.
+      setSelectedId(null);
+      setCaps(null);
+      setStatus(null);
+      setError(null);
+      await refreshScanners();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -313,13 +331,16 @@ export default function App() {
                 </option>
               ))}
             </select>
-            {scanners.length === 0 && (
+            {/* Always reachable: a typo'd IP must be removable and re-addable,
+                which it wasn't when this only appeared on an empty list. */}
+            {showManualAdd || scanners.length === 0 ? (
               <div className="mt-2 flex gap-2">
                 <input
                   value={manualHost}
                   onChange={(e) => setManualHost(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddManual()}
                   placeholder="IP-adres van printer"
+                  autoFocus={showManualAdd}
                   className="min-w-0 flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm"
                 />
                 <button
@@ -330,6 +351,24 @@ export default function App() {
                   Toevoegen
                 </button>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowManualAdd(true)}
+                className="mt-2 text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline"
+              >
+                Handmatig toevoegen op IP-adres
+              </button>
+            )}
+
+            {selected?.isManual && (
+              <button
+                type="button"
+                onClick={() => handleRemoveScanner(selected.id)}
+                className="mt-2 block text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
+              >
+                “{selected.name}” verwijderen
+              </button>
             )}
           </Field>
 

@@ -21,6 +21,8 @@ export type Scanner = {
   sources: string[];
   duplex: boolean;
   isSimulator: boolean;
+  /** True for entries the user typed in by hand, which are the only removable ones. */
+  isManual: boolean;
   lastSeen: number;
 };
 
@@ -65,6 +67,7 @@ function toScanner(svc: Service, secure: boolean): Scanner | null {
     sources: is ? is.split(",").map((s) => s.trim()).filter(Boolean) : [],
     duplex: txtValue(txt, "duplex").toUpperCase() === "T",
     isSimulator: /\[SIM\]|Simulator/i.test(`${svc.name} ${txtValue(txt, "note")}`),
+    isManual: false,
     lastSeen: Date.now(),
   };
 }
@@ -118,14 +121,15 @@ export function addManual(host: string, port = 80, path = "eSCL"): Scanner {
   const authority = port === 80 ? host : `${host}:${port}`;
   const s: Scanner = {
     id: `manual-${host}-${port}`,
-    name: `Scanner at ${host}`,
-    model: "Manually added",
+    name: `Scanner op ${host}`,
+    model: "Handmatig toegevoegd",
     host,
     port,
     baseUrl: `http://${authority}/${path.replace(/^\/+|\/+$/g, "")}`,
     sources: [],
     duplex: false,
     isSimulator: false,
+    isManual: true,
     lastSeen: Date.now(),
   };
   manual.set(s.id, s);
