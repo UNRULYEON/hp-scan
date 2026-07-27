@@ -107,7 +107,13 @@ Useful simulator env vars: `SIM_PORT`, `SIM_SHEETS`, `SIM_PAGE_DELAY_MS`
 
 ## Hosted app
 
-Production: **https://hp-scan.vercel.app**
+Production: **https://hp-scan.vercel.app** — the UI is in Dutch.
+
+Deploys automatically: pushing to `main` on
+[UNRULYEON/hp-scan](https://github.com/UNRULYEON/hp-scan) (private) builds and
+promotes to production. The Vercel project's **Root Directory is `web`**, since
+this repo is a monorepo — if that setting is ever lost, git builds fail
+immediately with "no package.json found".
 
 The helper allows that origin out of the box. Origins are resolved from three
 places, so moving to a new domain never requires rebuilding the binary:
