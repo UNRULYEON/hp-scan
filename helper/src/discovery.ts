@@ -109,22 +109,47 @@ export function startDiscovery(): () => void {
 }
 
 export function listScanners(): Scanner[] {
-  return [...manual.values(), ...scanners.values()].sort((a, b) => a.name.localeCompare(b.name));
+  // Discovered devices first: they are the ones the user actually wants
+  // selected by default, and manual entries are usually a fallback or a typo.
+  return [...scanners.values(), ...manual.values()].sort((a, b) => {
+    if (a.isManual !== b.isManual) return a.isManual ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function getScanner(id: string): Scanner | undefined {
   return manual.get(id) ?? scanners.get(id);
 }
 
-/** Escape hatch for networks where mDNS is blocked: point at an IP directly. */
-export function addManual(host: string, port = 80, path = "eSCL"): Scanner {
-  const authority = port === 80 ? host : `${host}:${port}`;
+/**
+ * Escape hatch for networks where mDNS is blocked: point at an IP directly.
+ *
+ * Accepts what a person would actually type — "192.168.1.50",
+ * "192.168.1.50:8080", or "http://192.168.1.50/" — rather than demanding a
+ * bare host. An embedded port wins over the `port` argument.
+ */
+export function addManual(input: string, port = 80, path = "eSCL"): Scanner {
+  let host = input
+    .trim()
+    .replace(/^[a-z]+:\/\//i, "") // strip a pasted scheme
+    .replace(/\/.*$/, ""); // and any trailing path
+
+  let resolvedPort = port;
+  const withPort = host.match(/^(.+):(\d{1,5})$/);
+  if (withPort) {
+    host = withPort[1];
+    resolvedPort = Number(withPort[2]);
+  }
+
+  const authority = resolvedPort === 80 ? host : `${host}:${resolvedPort}`;
   const s: Scanner = {
-    id: `manual-${host}-${port}`,
-    name: `Scanner op ${host}`,
+    id: `manual-${host}-${resolvedPort}`,
+    // Name is just the address: the UI shows the address next to the name, and
+    // repeating it in both slots reads badly.
+    name: authority,
     model: "Handmatig toegevoegd",
     host,
-    port,
+    port: resolvedPort,
     baseUrl: `http://${authority}/${path.replace(/^\/+|\/+$/g, "")}`,
     sources: [],
     duplex: false,

@@ -21,6 +21,7 @@ import {
 import { runScanJob } from "./lib/scanJob";
 import { buildPdf, downloadBlob, sanitizeFilename } from "./lib/pdf";
 import { PageGrid } from "./components/PageGrid";
+import { PrinterList } from "./components/PrinterList";
 import type { ScanPage } from "./types";
 
 const COLOR_LABELS: Record<ColorMode, string> = {
@@ -42,8 +43,6 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [status, setStatus] = useState<ScannerStatus | null>(null);
-  const [manualHost, setManualHost] = useState("");
-  const [showManualAdd, setShowManualAdd] = useState(false);
 
   // --- scan settings ------------------------------------------------------
   const [source, setSource] = useState<InputSource>("Platen");
@@ -113,10 +112,19 @@ export default function App() {
       setCaps(null);
       return;
     }
+    // Drop the previous printer's details straight away, so an unreachable one
+    // never shows the last printer's settings and a stale "Gereed" badge.
+    setCaps(null);
+    setStatus(null);
+
     let cancelled = false;
     (async () => {
       try {
-        const res = await esclFetch(selectedId, "/ScannerCapabilities");
+        // The proxy's own timeout is sized for scan jobs, which take minutes.
+        // Probing must fail fast instead, or a dead address hangs the UI.
+        const res = await esclFetch(selectedId, "/ScannerCapabilities", {
+          signal: AbortSignal.timeout(8_000),
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const parsed = parseCapabilities(await res.text());
         if (cancelled) return;
@@ -137,9 +145,12 @@ export default function App() {
       } catch (err) {
         if (!cancelled) {
           setCaps(null);
+          const timedOut = (err as Error).name === "TimeoutError";
           setError(
-            `Kan de mogelijkheden van de scanner niet uitlezen (${(err as Error).message}). ` +
-              `Mogelijk staat hij in slaapstand — wek hem en ververs de pagina.`,
+            timedOut
+              ? `Geen reactie van de printer. Controleer of hij aan staat en of het adres klopt.`
+              : `Kan de mogelijkheden van de printer niet uitlezen (${(err as Error).message}). ` +
+                `Mogelijk staat hij in slaapstand — wek hem en probeer opnieuw.`,
           );
         }
       }
@@ -156,7 +167,9 @@ export default function App() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await esclFetch(selectedId, "/ScannerStatus");
+        const res = await esclFetch(selectedId, "/ScannerStatus", {
+          signal: AbortSignal.timeout(8_000),
+        });
         if (res.ok && !cancelled) setStatus(parseStatus(await res.text()));
       } catch {
         /* transient; the next tick will retry */
@@ -267,15 +280,13 @@ export default function App() {
     }
   }
 
-  async function handleAddManual() {
-    const host = manualHost.trim();
-    if (!host) return;
+  async function handleAddManual(host: string) {
     try {
       const s = await addManualScanner(host);
-      setManualHost("");
-      setShowManualAdd(false);
       await refreshScanners();
+      // Switch to what was just added — that's why they added it.
       setSelectedId(s.id);
+      setError(null);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -308,9 +319,12 @@ export default function App() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Scannen</h1>
           <p className="text-sm text-stone-500">
-            {selected
-              ? `${selected.model}${selected.isSimulator ? " (simulator)" : ""}`
-              : "Bezig met zoeken naar scanners op je netwerk…"}
+            {!selected
+              ? "Bezig met zoeken naar printers op je netwerk…"
+              : selected.isManual
+                ? // A manual entry has no model to report, only an address.
+                  `Handmatige printer op ${selected.host}`
+                : `${selected.model}${selected.isSimulator ? " (simulator)" : ""}`}
           </p>
         </div>
         <StatusPill status={status} caps={caps} />
@@ -318,59 +332,13 @@ export default function App() {
 
       <div className="grid gap-6 lg:grid-cols-[20rem_1fr]">
         <aside className="flex flex-col gap-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-          <Field label="Scanner">
-            <select
-              value={selectedId ?? ""}
-              onChange={(e) => setSelectedId(e.target.value || null)}
-              className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-            >
-              {scanners.length === 0 && <option value="">Geen scanners gevonden</option>}
-              {scanners.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            {/* Always reachable: a typo'd IP must be removable and re-addable,
-                which it wasn't when this only appeared on an empty list. */}
-            {showManualAdd || scanners.length === 0 ? (
-              <div className="mt-2 flex gap-2">
-                <input
-                  value={manualHost}
-                  onChange={(e) => setManualHost(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddManual()}
-                  placeholder="IP-adres van printer"
-                  autoFocus={showManualAdd}
-                  className="min-w-0 flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddManual}
-                  className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium hover:bg-stone-50"
-                >
-                  Toevoegen
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowManualAdd(true)}
-                className="mt-2 text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline"
-              >
-                Handmatig toevoegen op IP-adres
-              </button>
-            )}
-
-            {selected?.isManual && (
-              <button
-                type="button"
-                onClick={() => handleRemoveScanner(selected.id)}
-                className="mt-2 block text-xs font-medium text-red-600 hover:text-red-800 hover:underline"
-              >
-                “{selected.name}” verwijderen
-              </button>
-            )}
-          </Field>
+          <PrinterList
+            scanners={scanners}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onRemove={handleRemoveScanner}
+            onAdd={handleAddManual}
+          />
 
           <Field label="Scannen vanaf">
             <div className="grid grid-cols-2 gap-2">

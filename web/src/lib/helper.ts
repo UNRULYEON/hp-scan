@@ -33,9 +33,15 @@ export class HelperUnavailableError extends Error {
 async function helperFetch(path: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(`${HELPER_ORIGIN}${path}`, init);
-  } catch {
-    // A network-level failure here almost always means the helper isn't running
-    // (or Chrome blocked the private-network preflight).
+  } catch (err) {
+    // A caller's own abort or timeout says nothing about the helper's health —
+    // usually it means the printer behind the proxy went unanswered. Masking it
+    // as an outage would blame the wrong thing.
+    if (err instanceof DOMException && (err.name === "AbortError" || err.name === "TimeoutError")) {
+      throw err;
+    }
+    // Anything else at the network level means the helper isn't running (or
+    // Chrome blocked the private-network preflight).
     throw new HelperUnavailableError();
   }
 }
