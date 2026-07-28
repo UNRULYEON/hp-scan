@@ -245,11 +245,13 @@ export function buildScanSettings(req: ScanRequest): string {
     `<pwg:YOffset>0</pwg:YOffset>` +
     `</pwg:ScanRegion></pwg:ScanRegions>` +
     `<pwg:InputSource>${req.source}</pwg:InputSource>` +
-    duplexEl +
     formatEl +
     `<scan:XResolution>${req.resolution}</scan:XResolution>` +
     `<scan:YResolution>${req.resolution}</scan:YResolution>` +
     `<scan:ColorMode>${req.colorMode}</scan:ColorMode>` +
+    // Duplex belongs after ColorMode, not next to InputSource: that is where
+    // the device's own client puts it, and this firmware validates order.
+    duplexEl +
     tuning +
     `</scan:ScanSettings>`
   );
