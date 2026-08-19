@@ -1,46 +1,13 @@
-import { Component, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { formatThrown, type DisplayedError } from "../lib/appError";
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2_000);
-    } catch {
-      // Clipboard can be denied; the dump is still on screen to select.
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => void copy()}
-      className="shrink-0 text-xs font-medium underline-offset-2 hover:underline"
-    >
-      {copied ? "Gekopieerd" : "Kopiëren"}
-    </button>
-  );
-}
-
-/** Always-visible dump so a screenshot or copy includes the real error. */
-export function TechnicalDetails({
-  detail,
-  copyText,
-}: {
-  detail: string;
-  copyText?: string;
-}) {
+/** Always-visible dump so a screenshot includes the real error. */
+export function TechnicalDetails({ detail }: { detail: string }) {
   return (
     <div className="mt-3 rounded-md border border-red-200/80 bg-white/70 p-3 text-red-950">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-red-800">
-          Technische details
-        </p>
-        <CopyButton text={copyText ?? detail} />
-      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-red-800">
+        Technische details
+      </p>
       <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed">
         {detail}
       </pre>
@@ -93,10 +60,7 @@ export function ErrorBanner({
           )}
         </div>
       )}
-      <TechnicalDetails
-        detail={error.detail}
-        copyText={`${error.message}\n\n${error.detail}`}
-      />
+      <TechnicalDetails detail={error.detail} />
     </div>
   );
 }
