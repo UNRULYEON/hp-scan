@@ -22,7 +22,7 @@ import { runScanJob } from "./lib/scanJob";
 import { buildPdf, downloadBlob, sanitizeFilename } from "./lib/pdf";
 import { PageGrid } from "./components/PageGrid";
 import { PrinterList } from "./components/PrinterList";
-import { ErrorBanner, TechnicalDetails } from "./components/ErrorPanel";
+import { ErrorBanner } from "./components/ErrorPanel";
 import { toDisplayedError, userMessage, type DisplayedError } from "./lib/appError";
 import type { ScanPage } from "./types";
 
@@ -362,27 +362,45 @@ export default function App() {
   }
 
   const previewPage = pages.find((p) => p.id === previewId) ?? null;
+  const helperDown = helperReady === false;
 
   // --- render -------------------------------------------------------------
 
-  if (helperReady === false) {
-    return (
-      <HelperMissing
-        onRetry={() => void connectHelper()}
-        busy={helperBusy}
-        error={helperError}
-      />
-    );
-  }
-
   return (
     <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-6 p-6">
+      {helperDown && (
+        <ErrorBanner
+          error={{
+            message: "De scanhelper draait niet",
+            detail: helperError?.detail ?? "De helper is niet bereikbaar.",
+          }}
+          description={
+            <>
+              Deze pagina heeft een klein hulpprogramma op je computer nodig om je printer te vinden
+              en ermee te communiceren. Start <span className="font-medium">hp-scan-helper</span> en
+              probeer het opnieuw.
+            </>
+          }
+          onRetry={() => void connectHelper()}
+          retryBusy={helperBusy}
+        />
+      )}
+      {error && (
+        <ErrorBanner
+          error={error}
+          onRetry={retryRef.current ? retryError : undefined}
+          onDismiss={dismissError}
+        />
+      )}
+
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Scannen</h1>
           <p className="text-sm text-stone-500">
             {!selected
-              ? "Bezig met zoeken naar printers op je netwerk…"
+              ? helperDown
+                ? "Start de helper om printers op je netwerk te vinden"
+                : "Bezig met zoeken naar printers op je netwerk…"
               : selected.isManual
                 ? // A manual entry has no model to report, only an address.
                   `Handmatige printer op ${selected.host}`
@@ -501,14 +519,6 @@ export default function App() {
         </aside>
 
         <main className="flex flex-col gap-4">
-          {error && (
-            <ErrorBanner
-              error={error}
-              onRetry={retryRef.current ? retryError : undefined}
-              onDismiss={dismissError}
-            />
-          )}
-
           {pages.length === 0 ? (
             <EmptyState scanning={scanning} source={source} />
           ) : (
@@ -643,45 +653,6 @@ function EmptyState({ scanning, source }: { scanning: boolean; source: InputSour
             ? "Leg je documenten in de invoer en klik op Scannen."
             : "Leg een pagina op de glasplaat en klik op Scannen. Je kunt pagina voor pagina blijven toevoegen."}
       </p>
-    </div>
-  );
-}
-
-function HelperMissing({
-  onRetry,
-  busy,
-  error,
-}: {
-  onRetry: () => void;
-  busy: boolean;
-  error: DisplayedError | null;
-}) {
-  return (
-    <div className="flex min-h-full items-center justify-center p-8">
-      <div className="w-full max-w-lg rounded-xl border border-stone-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold">De scanhelper draait niet</h1>
-        <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          Deze pagina heeft een klein hulpprogramma op je computer nodig om je printer te vinden en
-          ermee te communiceren. Browsers kunnen printers niet zelf bereiken.
-        </p>
-        <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          Start <span className="font-medium">hp-scan-helper</span> en probeer het opnieuw.
-        </p>
-        {error && (
-          <TechnicalDetails
-            detail={error.detail}
-            copyText={`${error.message}\n\n${error.detail}`}
-          />
-        )}
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={busy}
-          className="mt-6 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:bg-stone-400"
-        >
-          {busy ? "Bezig…" : "Opnieuw proberen"}
-        </button>
-      </div>
     </div>
   );
 }

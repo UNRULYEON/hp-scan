@@ -50,12 +50,18 @@ export function TechnicalDetails({
 
 export function ErrorBanner({
   error,
+  description,
   onDismiss,
+  dismissLabel = "Sluiten",
   onRetry,
+  retryBusy,
 }: {
   error: DisplayedError;
+  description?: ReactNode;
   onDismiss?: () => void;
+  dismissLabel?: string;
   onRetry?: () => void;
+  retryBusy?: boolean;
 }) {
   return (
     <div
@@ -63,15 +69,17 @@ export function ErrorBanner({
       className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
     >
       <p className="font-medium">{error.message}</p>
+      {description && <div className="mt-1 text-sm leading-relaxed text-red-800/80">{description}</div>}
       {(onRetry || onDismiss) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {onRetry && (
             <button
               type="button"
               onClick={onRetry}
-              className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-sky-700"
+              disabled={retryBusy}
+              className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:bg-stone-400"
             >
-              Opnieuw proberen
+              {retryBusy ? "Bezig…" : "Opnieuw proberen"}
             </button>
           )}
           {onDismiss && (
@@ -80,7 +88,7 @@ export function ErrorBanner({
               onClick={onDismiss}
               className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
             >
-              Sluiten
+              {dismissLabel}
             </button>
           )}
         </div>
@@ -130,27 +138,21 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, BoundarySt
     if (!this.state.error) return this.props.children;
 
     return (
-      <div className="flex min-h-full items-center justify-center p-8">
-        <div className="w-full max-w-lg rounded-xl border border-red-200 bg-white p-8 shadow-sm">
-          <h1 className="text-xl font-semibold text-red-900">De pagina is vastgelopen</h1>
-          <p className="mt-3 text-sm leading-relaxed text-stone-600">{this.state.error.message}</p>
-          <TechnicalDetails detail={this.state.error.detail} />
-          <div className="mt-6 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => this.setState({ error: null })}
-              className="rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-            >
-              Opnieuw proberen
-            </button>
-            <button
-              type="button"
-              onClick={() => location.reload()}
-              className="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
-            >
-              Pagina vernieuwen
-            </button>
-          </div>
+      <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-6 p-6">
+        <ErrorBanner
+          error={this.state.error}
+          onRetry={() => this.setState({ error: null })}
+          onDismiss={() => location.reload()}
+          dismissLabel="Pagina vernieuwen"
+        />
+        <header>
+          <h1 className="text-2xl font-semibold tracking-tight">Scannen</h1>
+        </header>
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300 bg-white/60 p-16 text-center">
+          <p className="text-lg font-medium text-stone-700">De pagina is vastgelopen</p>
+          <p className="max-w-sm text-sm text-stone-500">
+            Probeer het opnieuw, of vernieuw de pagina als de fout blijft terugkomen.
+          </p>
         </div>
       </div>
     );
