@@ -51,23 +51,40 @@ export function TechnicalDetails({
 export function ErrorBanner({
   error,
   onDismiss,
+  onRetry,
 }: {
   error: DisplayedError;
   onDismiss?: () => void;
+  onRetry?: () => void;
 }) {
   return (
     <div
       role="alert"
       className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
     >
-      <div className="flex items-start justify-between gap-4">
-        <p className="font-medium">{error.message}</p>
-        {onDismiss && (
-          <button type="button" onClick={onDismiss} className="shrink-0 font-medium">
-            Sluiten
-          </button>
-        )}
-      </div>
+      <p className="font-medium">{error.message}</p>
+      {(onRetry || onDismiss) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-sky-700"
+            >
+              Opnieuw proberen
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100"
+            >
+              Sluiten
+            </button>
+          )}
+        </div>
+      )}
       <TechnicalDetails
         detail={error.detail}
         copyText={`${error.message}\n\n${error.detail}`}
@@ -118,13 +135,22 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, BoundarySt
           <h1 className="text-xl font-semibold text-red-900">De pagina is vastgelopen</h1>
           <p className="mt-3 text-sm leading-relaxed text-stone-600">{this.state.error.message}</p>
           <TechnicalDetails detail={this.state.error.detail} />
-          <button
-            type="button"
-            onClick={() => location.reload()}
-            className="mt-6 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-          >
-            Pagina vernieuwen
-          </button>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => this.setState({ error: null })}
+              className="rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+            >
+              Opnieuw proberen
+            </button>
+            <button
+              type="button"
+              onClick={() => location.reload()}
+              className="rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"
+            >
+              Pagina vernieuwen
+            </button>
+          </div>
         </div>
       </div>
     );

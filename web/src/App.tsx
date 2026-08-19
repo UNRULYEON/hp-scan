@@ -60,9 +60,29 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<DisplayedError | null>(null);
   const [helperError, setHelperError] = useState<DisplayedError | null>(null);
+  const [helperBusy, setHelperBusy] = useState(false);
+  const [capsNonce, setCapsNonce] = useState(0);
   const [saving, setSaving] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const retryRef = useRef<(() => void) | null>(null);
+
+  function presentError(err: unknown, message: string, retry?: () => void) {
+    retryRef.current = retry ?? null;
+    setError(toDisplayedError(err, message));
+  }
+
+  function dismissError() {
+    retryRef.current = null;
+    setError(null);
+  }
+
+  function retryError() {
+    const retry = retryRef.current;
+    retryRef.current = null;
+    setError(null);
+    retry?.();
+  }
 
   const selected = useMemo(
     () => scanners.find((s) => s.id === selectedId) ?? null,
@@ -86,30 +106,28 @@ export default function App() {
         setHelperError(toDisplayedError(err, err.message));
         return;
       }
-      setError(toDisplayedError(err, "Kan de printerlijst niet ophalen."));
+      presentError(err, "Kan de printerlijst niet ophalen.", () => void refreshScanners());
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await checkHelper();
-        if (cancelled) return;
-        setHelperReady(true);
-        setHelperError(null);
-        await refreshScanners();
-      } catch (err) {
-        if (!cancelled) {
-          setHelperReady(false);
-          setHelperError(toDisplayedError(err, "Kan de hp-scan-helper niet bereiken."));
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const connectHelper = useCallback(async () => {
+    setHelperBusy(true);
+    try {
+      await checkHelper();
+      setHelperReady(true);
+      setHelperError(null);
+      await refreshScanners();
+    } catch (err) {
+      setHelperReady(false);
+      setHelperError(toDisplayedError(err, "Kan de hp-scan-helper niet bereiken."));
+    } finally {
+      setHelperBusy(false);
+    }
   }, [refreshScanners]);
+
+  useEffect(() => {
+    void connectHelper();
+  }, [connectHelper]);
 
   // Printers drop off and rejoin the network constantly; keep the list warm.
   useEffect(() => {
@@ -160,13 +178,12 @@ export default function App() {
           const timedOut = err instanceof DOMException
             ? err.name === "TimeoutError"
             : (err as Error).name === "TimeoutError";
-          setError(
-            toDisplayedError(
-              err,
-              timedOut
-                ? "Geen reactie van de printer. Controleer of hij aan staat en of het adres klopt."
-                : "Kan de mogelijkheden van de printer niet uitlezen. Mogelijk staat hij in slaapstand — wek hem en probeer opnieuw.",
-            ),
+          presentError(
+            err,
+            timedOut
+              ? "Geen reactie van de printer. Controleer of hij aan staat en of het adres klopt."
+              : "Kan de mogelijkheden van de printer niet uitlezen. Mogelijk staat hij in slaapstand — wek hem en probeer opnieuw.",
+            () => setCapsNonce((n) => n + 1),
           );
         }
       }
@@ -174,7 +191,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, capsNonce]);
 
   // Poll status so the ADF indicator reflects reality, but not while scanning
   // (the device is busy and polling can stall the job).
@@ -205,7 +222,7 @@ export default function App() {
 
   async function handleScan() {
     if (!selectedId) return;
-    setError(null);
+    dismissError();
     setScanning(true);
     setProgress(0);
 
@@ -255,7 +272,7 @@ export default function App() {
       );
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
-        setError(toDisplayedError(err, userMessage(err, "Het scannen is mislukt. Probeer het opnieuw.")));
+        presentError(err, userMessage(err, "Het scannen is mislukt. Probeer het opnieuw."), () => void handleScan());
       }
     } finally {
       setScanning(false);
@@ -294,7 +311,7 @@ export default function App() {
 
   async function handleSave() {
     setSaving(true);
-    setError(null);
+    dismissError();
     try {
       const pdf = await buildPdf(
         pages.map((p) => ({
@@ -307,7 +324,7 @@ export default function App() {
       );
       downloadBlob(pdf, sanitizeFilename(filename));
     } catch (err) {
-      setError(toDisplayedError(err, "Kan de PDF niet maken."));
+      presentError(err, "Kan de PDF niet maken.", () => void handleSave());
     } finally {
       setSaving(false);
     }
@@ -319,9 +336,13 @@ export default function App() {
       await refreshScanners();
       // Switch to what was just added — that's why they added it.
       setSelectedId(s.id);
-      setError(null);
+      dismissError();
     } catch (err) {
-      setError(toDisplayedError(err, userMessage(err, "Kan de printer niet toevoegen. Controleer het IP-adres.")));
+      presentError(
+        err,
+        userMessage(err, "Kan de printer niet toevoegen. Controleer het IP-adres."),
+        () => void handleAddManual(host),
+      );
     }
   }
 
@@ -333,10 +354,10 @@ export default function App() {
       setSelectedId(null);
       setCaps(null);
       setStatus(null);
-      setError(null);
+      dismissError();
       await refreshScanners();
     } catch (err) {
-      setError(toDisplayedError(err, userMessage(err, "Kan de printer niet verwijderen.")));
+      presentError(err, userMessage(err, "Kan de printer niet verwijderen."), () => void handleRemoveScanner(id));
     }
   }
 
@@ -345,7 +366,13 @@ export default function App() {
   // --- render -------------------------------------------------------------
 
   if (helperReady === false) {
-    return <HelperMissing onRetry={() => location.reload()} error={helperError} />;
+    return (
+      <HelperMissing
+        onRetry={() => void connectHelper()}
+        busy={helperBusy}
+        error={helperError}
+      />
+    );
   }
 
   return (
@@ -474,7 +501,13 @@ export default function App() {
         </aside>
 
         <main className="flex flex-col gap-4">
-          {error && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
+          {error && (
+            <ErrorBanner
+              error={error}
+              onRetry={retryRef.current ? retryError : undefined}
+              onDismiss={dismissError}
+            />
+          )}
 
           {pages.length === 0 ? (
             <EmptyState scanning={scanning} source={source} />
@@ -616,9 +649,11 @@ function EmptyState({ scanning, source }: { scanning: boolean; source: InputSour
 
 function HelperMissing({
   onRetry,
+  busy,
   error,
 }: {
   onRetry: () => void;
+  busy: boolean;
   error: DisplayedError | null;
 }) {
   return (
@@ -641,9 +676,10 @@ function HelperMissing({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-6 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+          disabled={busy}
+          className="mt-6 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:bg-stone-400"
         >
-          Opnieuw proberen
+          {busy ? "Bezig…" : "Opnieuw proberen"}
         </button>
       </div>
     </div>
