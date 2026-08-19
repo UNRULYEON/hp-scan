@@ -22,6 +22,8 @@ import { runScanJob } from "./lib/scanJob";
 import { buildPdf, downloadBlob, sanitizeFilename } from "./lib/pdf";
 import { PageGrid } from "./components/PageGrid";
 import { PrinterList } from "./components/PrinterList";
+import { ErrorBanner } from "./components/ErrorPanel";
+import { toDisplayedError, userMessage, type DisplayedError } from "./lib/appError";
 import type { ScanPage } from "./types";
 
 const COLOR_LABELS: Record<ColorMode, string> = {
@@ -56,10 +58,31 @@ export default function App() {
   const [filename, setFilename] = useState(defaultFilename);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<DisplayedError | null>(null);
+  const [helperError, setHelperError] = useState<DisplayedError | null>(null);
+  const [helperBusy, setHelperBusy] = useState(false);
+  const [capsNonce, setCapsNonce] = useState(0);
   const [saving, setSaving] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const retryRef = useRef<(() => void) | null>(null);
+
+  function presentError(err: unknown, message: string, retry?: () => void) {
+    retryRef.current = retry ?? null;
+    setError(toDisplayedError(err, message));
+  }
+
+  function dismissError() {
+    retryRef.current = null;
+    setError(null);
+  }
+
+  function retryError() {
+    const retry = retryRef.current;
+    retryRef.current = null;
+    setError(null);
+    retry?.();
+  }
 
   const selected = useMemo(
     () => scanners.find((s) => s.id === selectedId) ?? null,
@@ -78,26 +101,33 @@ export default function App() {
       setScanners(found);
       setSelectedId((current) => current ?? found[0]?.id ?? null);
     } catch (err) {
-      if (err instanceof HelperUnavailableError) setHelperReady(false);
+      if (err instanceof HelperUnavailableError) {
+        setHelperReady(false);
+        setHelperError(toDisplayedError(err, err.message));
+        return;
+      }
+      presentError(err, "Kan de printerlijst niet ophalen.", () => void refreshScanners());
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        await checkHelper();
-        if (cancelled) return;
-        setHelperReady(true);
-        await refreshScanners();
-      } catch {
-        if (!cancelled) setHelperReady(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const connectHelper = useCallback(async () => {
+    setHelperBusy(true);
+    try {
+      await checkHelper();
+      setHelperReady(true);
+      setHelperError(null);
+      await refreshScanners();
+    } catch (err) {
+      setHelperReady(false);
+      setHelperError(toDisplayedError(err, "Kan de hp-scan-helper niet bereiken."));
+    } finally {
+      setHelperBusy(false);
+    }
   }, [refreshScanners]);
+
+  useEffect(() => {
+    void connectHelper();
+  }, [connectHelper]);
 
   // Printers drop off and rejoin the network constantly; keep the list warm.
   useEffect(() => {
@@ -145,12 +175,15 @@ export default function App() {
       } catch (err) {
         if (!cancelled) {
           setCaps(null);
-          const timedOut = (err as Error).name === "TimeoutError";
-          setError(
+          const timedOut = err instanceof DOMException
+            ? err.name === "TimeoutError"
+            : (err as Error).name === "TimeoutError";
+          presentError(
+            err,
             timedOut
-              ? `Geen reactie van de printer. Controleer of hij aan staat en of het adres klopt.`
-              : `Kan de mogelijkheden van de printer niet uitlezen (${(err as Error).message}). ` +
-                `Mogelijk staat hij in slaapstand — wek hem en probeer opnieuw.`,
+              ? "Geen reactie van de printer. Controleer of hij aan staat en of het adres klopt."
+              : "Kan de mogelijkheden van de printer niet uitlezen. Mogelijk staat hij in slaapstand — wek hem en probeer opnieuw.",
+            () => setCapsNonce((n) => n + 1),
           );
         }
       }
@@ -158,7 +191,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, capsNonce]);
 
   // Poll status so the ADF indicator reflects reality, but not while scanning
   // (the device is busy and polling can stall the job).
@@ -189,7 +222,7 @@ export default function App() {
 
   async function handleScan() {
     if (!selectedId) return;
-    setError(null);
+    dismissError();
     setScanning(true);
     setProgress(0);
 
@@ -238,7 +271,9 @@ export default function App() {
         controller.signal,
       );
     } catch (err) {
-      if ((err as Error).name !== "AbortError") setError((err as Error).message);
+      if ((err as Error).name !== "AbortError") {
+        presentError(err, userMessage(err, "Het scannen is mislukt. Probeer het opnieuw."), () => void handleScan());
+      }
     } finally {
       setScanning(false);
       abortRef.current = null;
@@ -276,7 +311,7 @@ export default function App() {
 
   async function handleSave() {
     setSaving(true);
-    setError(null);
+    dismissError();
     try {
       const pdf = await buildPdf(
         pages.map((p) => ({
@@ -289,7 +324,7 @@ export default function App() {
       );
       downloadBlob(pdf, sanitizeFilename(filename));
     } catch (err) {
-      setError(`Kan de PDF niet maken: ${(err as Error).message}`);
+      presentError(err, "Kan de PDF niet maken.", () => void handleSave());
     } finally {
       setSaving(false);
     }
@@ -301,9 +336,13 @@ export default function App() {
       await refreshScanners();
       // Switch to what was just added — that's why they added it.
       setSelectedId(s.id);
-      setError(null);
+      dismissError();
     } catch (err) {
-      setError((err as Error).message);
+      presentError(
+        err,
+        userMessage(err, "Kan de printer niet toevoegen. Controleer het IP-adres."),
+        () => void handleAddManual(host),
+      );
     }
   }
 
@@ -315,27 +354,53 @@ export default function App() {
       setSelectedId(null);
       setCaps(null);
       setStatus(null);
-      setError(null);
+      dismissError();
       await refreshScanners();
     } catch (err) {
-      setError((err as Error).message);
+      presentError(err, userMessage(err, "Kan de printer niet verwijderen."), () => void handleRemoveScanner(id));
     }
   }
 
   const previewPage = pages.find((p) => p.id === previewId) ?? null;
+  const helperDown = helperReady === false;
 
   // --- render -------------------------------------------------------------
 
-  if (helperReady === false) return <HelperMissing onRetry={() => location.reload()} />;
-
   return (
     <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-6 p-6">
+      {helperDown && (
+        <ErrorBanner
+          error={{
+            message: "De scanhelper draait niet",
+            detail: helperError?.detail ?? "De helper is niet bereikbaar.",
+          }}
+          description={
+            <>
+              Deze pagina heeft een klein hulpprogramma op je computer nodig om je printer te vinden
+              en ermee te communiceren. Start <span className="font-medium">hp-scan-helper</span> en
+              probeer het opnieuw.
+            </>
+          }
+          onRetry={() => void connectHelper()}
+          retryBusy={helperBusy}
+        />
+      )}
+      {error && (
+        <ErrorBanner
+          error={error}
+          onRetry={retryRef.current ? retryError : undefined}
+          onDismiss={dismissError}
+        />
+      )}
+
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Scannen</h1>
           <p className="text-sm text-stone-500">
             {!selected
-              ? "Bezig met zoeken naar printers op je netwerk…"
+              ? helperDown
+                ? "Start de helper om printers op je netwerk te vinden"
+                : "Bezig met zoeken naar printers op je netwerk…"
               : selected.isManual
                 ? // A manual entry has no model to report, only an address.
                   `Handmatige printer op ${selected.host}`
@@ -454,15 +519,6 @@ export default function App() {
         </aside>
 
         <main className="flex flex-col gap-4">
-          {error && (
-            <div className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              <span>{error}</span>
-              <button type="button" onClick={() => setError(null)} className="font-medium">
-                Sluiten
-              </button>
-            </div>
-          )}
-
           {pages.length === 0 ? (
             <EmptyState scanning={scanning} source={source} />
           ) : (
@@ -597,30 +653,6 @@ function EmptyState({ scanning, source }: { scanning: boolean; source: InputSour
             ? "Leg je documenten in de invoer en klik op Scannen."
             : "Leg een pagina op de glasplaat en klik op Scannen. Je kunt pagina voor pagina blijven toevoegen."}
       </p>
-    </div>
-  );
-}
-
-function HelperMissing({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div className="flex min-h-full items-center justify-center p-8">
-      <div className="max-w-lg rounded-xl border border-stone-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold">De scanhelper draait niet</h1>
-        <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          Deze pagina heeft een klein hulpprogramma op je computer nodig om je printer te vinden en
-          ermee te communiceren. Browsers kunnen printers niet zelf bereiken.
-        </p>
-        <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          Start <span className="font-medium">hp-scan-helper</span> en probeer het opnieuw.
-        </p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-6 rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-        >
-          Opnieuw proberen
-        </button>
-      </div>
     </div>
   );
 }

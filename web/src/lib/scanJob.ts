@@ -23,7 +23,11 @@ export type ScanJobEvents = {
 };
 
 export class ScanError extends Error {
-  constructor(message: string, readonly status?: number) {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly responseBody?: string,
+  ) {
     super(message);
     this.name = "ScanError";
   }
@@ -100,7 +104,8 @@ export async function runScanJob(
   const create = await createJob(scannerId, req, signal);
 
   if (create.status !== 201) {
-    throw new ScanError(describeCreateFailure(create.status), create.status);
+    const body = await create.text().catch(() => "");
+    throw new ScanError(describeCreateFailure(create.status), create.status, body);
   }
 
   // The helper rewrites Location to a helper-relative path. Some browsers hide
@@ -132,7 +137,12 @@ export async function runScanJob(
       }
 
       if (!res.ok) {
-        throw new ScanError(`De scanner gaf een fout tijdens het versturen van een pagina (HTTP ${res.status}).`, res.status);
+        const body = await res.text().catch(() => "");
+        throw new ScanError(
+          `De scanner gaf een fout tijdens het versturen van een pagina (HTTP ${res.status}).`,
+          res.status,
+          body,
+        );
       }
 
       const blob = await res.blob();
