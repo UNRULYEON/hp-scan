@@ -22,6 +22,8 @@ import { runScanJob } from "./lib/scanJob";
 import { buildPdf, downloadBlob, sanitizeFilename } from "./lib/pdf";
 import { PageGrid } from "./components/PageGrid";
 import { PrinterList } from "./components/PrinterList";
+import { ErrorBanner, TechnicalDetails } from "./components/ErrorPanel";
+import { toDisplayedError, userMessage, type DisplayedError } from "./lib/appError";
 import type { ScanPage } from "./types";
 
 const COLOR_LABELS: Record<ColorMode, string> = {
@@ -56,7 +58,8 @@ export default function App() {
   const [filename, setFilename] = useState(defaultFilename);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<DisplayedError | null>(null);
+  const [helperError, setHelperError] = useState<DisplayedError | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -78,7 +81,12 @@ export default function App() {
       setScanners(found);
       setSelectedId((current) => current ?? found[0]?.id ?? null);
     } catch (err) {
-      if (err instanceof HelperUnavailableError) setHelperReady(false);
+      if (err instanceof HelperUnavailableError) {
+        setHelperReady(false);
+        setHelperError(toDisplayedError(err, err.message));
+        return;
+      }
+      setError(toDisplayedError(err, "Kan de printerlijst niet ophalen."));
     }
   }, []);
 
@@ -89,9 +97,13 @@ export default function App() {
         await checkHelper();
         if (cancelled) return;
         setHelperReady(true);
+        setHelperError(null);
         await refreshScanners();
-      } catch {
-        if (!cancelled) setHelperReady(false);
+      } catch (err) {
+        if (!cancelled) {
+          setHelperReady(false);
+          setHelperError(toDisplayedError(err, "Kan de hp-scan-helper niet bereiken."));
+        }
       }
     })();
     return () => {
@@ -145,12 +157,16 @@ export default function App() {
       } catch (err) {
         if (!cancelled) {
           setCaps(null);
-          const timedOut = (err as Error).name === "TimeoutError";
+          const timedOut = err instanceof DOMException
+            ? err.name === "TimeoutError"
+            : (err as Error).name === "TimeoutError";
           setError(
-            timedOut
-              ? `Geen reactie van de printer. Controleer of hij aan staat en of het adres klopt.`
-              : `Kan de mogelijkheden van de printer niet uitlezen (${(err as Error).message}). ` +
-                `Mogelijk staat hij in slaapstand — wek hem en probeer opnieuw.`,
+            toDisplayedError(
+              err,
+              timedOut
+                ? "Geen reactie van de printer. Controleer of hij aan staat en of het adres klopt."
+                : "Kan de mogelijkheden van de printer niet uitlezen. Mogelijk staat hij in slaapstand — wek hem en probeer opnieuw.",
+            ),
           );
         }
       }
@@ -238,7 +254,9 @@ export default function App() {
         controller.signal,
       );
     } catch (err) {
-      if ((err as Error).name !== "AbortError") setError((err as Error).message);
+      if ((err as Error).name !== "AbortError") {
+        setError(toDisplayedError(err, userMessage(err, "Het scannen is mislukt. Probeer het opnieuw.")));
+      }
     } finally {
       setScanning(false);
       abortRef.current = null;
@@ -289,7 +307,7 @@ export default function App() {
       );
       downloadBlob(pdf, sanitizeFilename(filename));
     } catch (err) {
-      setError(`Kan de PDF niet maken: ${(err as Error).message}`);
+      setError(toDisplayedError(err, "Kan de PDF niet maken."));
     } finally {
       setSaving(false);
     }
@@ -303,7 +321,7 @@ export default function App() {
       setSelectedId(s.id);
       setError(null);
     } catch (err) {
-      setError((err as Error).message);
+      setError(toDisplayedError(err, userMessage(err, "Kan de printer niet toevoegen. Controleer het IP-adres.")));
     }
   }
 
@@ -318,7 +336,7 @@ export default function App() {
       setError(null);
       await refreshScanners();
     } catch (err) {
-      setError((err as Error).message);
+      setError(toDisplayedError(err, userMessage(err, "Kan de printer niet verwijderen.")));
     }
   }
 
@@ -326,7 +344,9 @@ export default function App() {
 
   // --- render -------------------------------------------------------------
 
-  if (helperReady === false) return <HelperMissing onRetry={() => location.reload()} />;
+  if (helperReady === false) {
+    return <HelperMissing onRetry={() => location.reload()} error={helperError} />;
+  }
 
   return (
     <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-6 p-6">
@@ -454,14 +474,7 @@ export default function App() {
         </aside>
 
         <main className="flex flex-col gap-4">
-          {error && (
-            <div className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              <span>{error}</span>
-              <button type="button" onClick={() => setError(null)} className="font-medium">
-                Sluiten
-              </button>
-            </div>
-          )}
+          {error && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
 
           {pages.length === 0 ? (
             <EmptyState scanning={scanning} source={source} />
@@ -601,10 +614,16 @@ function EmptyState({ scanning, source }: { scanning: boolean; source: InputSour
   );
 }
 
-function HelperMissing({ onRetry }: { onRetry: () => void }) {
+function HelperMissing({
+  onRetry,
+  error,
+}: {
+  onRetry: () => void;
+  error: DisplayedError | null;
+}) {
   return (
     <div className="flex min-h-full items-center justify-center p-8">
-      <div className="max-w-lg rounded-xl border border-stone-200 bg-white p-8 shadow-sm">
+      <div className="w-full max-w-lg rounded-xl border border-stone-200 bg-white p-8 shadow-sm">
         <h1 className="text-xl font-semibold">De scanhelper draait niet</h1>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
           Deze pagina heeft een klein hulpprogramma op je computer nodig om je printer te vinden en
@@ -613,6 +632,12 @@ function HelperMissing({ onRetry }: { onRetry: () => void }) {
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
           Start <span className="font-medium">hp-scan-helper</span> en probeer het opnieuw.
         </p>
+        {error && (
+          <TechnicalDetails
+            detail={error.detail}
+            copyText={`${error.message}\n\n${error.detail}`}
+          />
+        )}
         <button
           type="button"
           onClick={onRetry}

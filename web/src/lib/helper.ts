@@ -24,10 +24,25 @@ export type Scanner = {
 };
 
 export class HelperUnavailableError extends Error {
-  constructor() {
-    super("Kan de hp-scan-helper niet bereiken");
+  constructor(cause?: unknown) {
+    super("Kan de hp-scan-helper niet bereiken", cause !== undefined ? { cause } : undefined);
     this.name = "HelperUnavailableError";
   }
+}
+
+export class HelperRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly responseBody?: string,
+  ) {
+    super(message);
+    this.name = "HelperRequestError";
+  }
+}
+
+async function readBody(res: Response): Promise<string> {
+  return res.text().catch(() => "");
 }
 
 async function helperFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -41,20 +56,35 @@ async function helperFetch(path: string, init?: RequestInit): Promise<Response> 
       throw err;
     }
     // Anything else at the network level means the helper isn't running (or
-    // Chrome blocked the private-network preflight).
-    throw new HelperUnavailableError();
+    // Chrome blocked the private-network preflight). Keep the original error
+    // so the UI can show *why* the fetch failed.
+    throw new HelperUnavailableError(err);
   }
 }
 
 export async function checkHelper(): Promise<{ version: string }> {
   const res = await helperFetch("/v1/health");
-  if (!res.ok) throw new HelperUnavailableError();
+  if (!res.ok) {
+    throw new HelperUnavailableError(
+      new HelperRequestError(
+        `Health check HTTP ${res.status} ${res.statusText}`.trim(),
+        res.status,
+        await readBody(res),
+      ),
+    );
+  }
   return res.json();
 }
 
 export async function listScanners(): Promise<Scanner[]> {
   const res = await helperFetch("/v1/scanners");
-  if (!res.ok) throw new Error(`Helper gaf status ${res.status} terug`);
+  if (!res.ok) {
+    throw new HelperRequestError(
+      `Kan de printerlijst niet ophalen (HTTP ${res.status})`,
+      res.status,
+      await readBody(res),
+    );
+  }
   const body = (await res.json()) as { scanners: Scanner[] };
   return body.scanners;
 }
@@ -65,7 +95,13 @@ export async function addManualScanner(host: string, port = 80): Promise<Scanner
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ host, port }),
   });
-  if (!res.ok) throw new Error(`Kan de scanner op ${host} niet toevoegen`);
+  if (!res.ok) {
+    throw new HelperRequestError(
+      `Kan de scanner op ${host} niet toevoegen (HTTP ${res.status})`,
+      res.status,
+      await readBody(res),
+    );
+  }
   const body = (await res.json()) as { scanner: Scanner };
   return body.scanner;
 }
@@ -73,7 +109,13 @@ export async function addManualScanner(host: string, port = 80): Promise<Scanner
 /** Remove a manually added scanner. Discovered ones cannot be removed. */
 export async function removeScanner(id: string): Promise<void> {
   const res = await helperFetch(`/v1/scanners/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Kan de scanner niet verwijderen");
+  if (!res.ok) {
+    throw new HelperRequestError(
+      `Kan de scanner niet verwijderen (HTTP ${res.status})`,
+      res.status,
+      await readBody(res),
+    );
+  }
 }
 
 /** Issue a request against a scanner's eSCL interface via the helper proxy. */
