@@ -31,9 +31,40 @@ const scanners = new Map<string, Scanner>();
 const manual = new Map<string, Scanner>();
 
 function txtValue(txt: Record<string, unknown> | undefined, key: string): string {
-  const v = txt?.[key];
-  if (v == null) return "";
-  return Buffer.isBuffer(v) ? v.toString("utf8") : String(v);
+  if (!txt) return "";
+  const want = key.toLowerCase();
+  // HP (and the AirPrint spec) emit `UUID`; some stacks lowercase the keys.
+  for (const [k, v] of Object.entries(txt)) {
+    if (k.toLowerCase() !== want) continue;
+    if (v == null) return "";
+    return Buffer.isBuffer(v) ? v.toString("utf8") : String(v);
+  }
+  return "";
+}
+
+/**
+ * HP printers advertise eSCL twice: `_uscan._tcp` on :8080 (HTTP, works) and
+ * `_uscans._tcp` on :443 (HTTPS, self-signed, does not). The UI hides ports
+ * 80 and 443, so the TLS one shows up as a bare IP that then fails.
+ *
+ * Keep one entry per host, preferring HTTP with an explicit port.
+ */
+export function preferredScanners(scanners: Scanner[]): Scanner[] {
+  const bestByHost = new Map<string, Scanner>();
+  for (const s of scanners) {
+    const prev = bestByHost.get(s.host);
+    if (!prev || scannerRank(s) > scannerRank(prev)) bestByHost.set(s.host, s);
+  }
+  const keep = new Set(bestByHost.values());
+  return scanners.filter((s) => keep.has(s));
+}
+
+function scannerRank(s: Scanner): number {
+  let n = 0;
+  if (!s.baseUrl.startsWith("https://")) n += 100;
+  if (s.port !== 80 && s.port !== 443) n += 10;
+  if (!s.isManual) n += 1;
+  return n;
 }
 
 /**
@@ -45,7 +76,7 @@ function addressFor(svc: Service): string {
   return v4 ?? svc.host ?? "";
 }
 
-function toScanner(svc: Service, secure: boolean): Scanner | null {
+export function toScanner(svc: Service, secure: boolean): Scanner | null {
   const host = addressFor(svc);
   if (!host) return null;
 
@@ -111,7 +142,7 @@ export function startDiscovery(): () => void {
 export function listScanners(): Scanner[] {
   // Discovered devices first: they are the ones the user actually wants
   // selected by default, and manual entries are usually a fallback or a typo.
-  return [...scanners.values(), ...manual.values()].sort((a, b) => {
+  return preferredScanners([...scanners.values(), ...manual.values()]).sort((a, b) => {
     if (a.isManual !== b.isManual) return a.isManual ? 1 : -1;
     return a.name.localeCompare(b.name);
   });

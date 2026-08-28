@@ -18,6 +18,7 @@ import {
   listScanners,
   type Scanner,
 } from "./lib/helper";
+import { preferredScanners } from "./lib/scanners";
 import { runScanJob } from "./lib/scanJob";
 import { buildPdf, downloadBlob, sanitizeFilename } from "./lib/pdf";
 import { PageGrid } from "./components/PageGrid";
@@ -97,9 +98,12 @@ export default function App() {
 
   const refreshScanners = useCallback(async () => {
     try {
-      const found = await listScanners();
+      const found = preferredScanners(await listScanners());
       setScanners(found);
-      setSelectedId((current) => current ?? found[0]?.id ?? null);
+      setSelectedId((current) => {
+        if (current && found.some((s) => s.id === current)) return current;
+        return found[0]?.id ?? null;
+      });
     } catch (err) {
       if (err instanceof HelperUnavailableError) {
         setHelperReady(false);
