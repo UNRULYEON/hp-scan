@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
+    "test": "bun test",
     "build:mac-arm": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile dist/hp-scan-helper-mac-arm64",
     "build:mac-x64": "bun build --compile --target=bun-darwin-x64 src/index.ts --outfile dist/hp-scan-helper-mac-x64",
     "build:win": "bun build --compile --target=bun-windows-x64 src/index.ts --outfile dist/hp-scan-helper-win-x64.exe",
